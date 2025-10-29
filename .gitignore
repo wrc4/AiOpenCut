@@ -32,3 +32,4 @@ apps/transcription/__pycache__
 apps/transcription/env
 
 apps/bg-remover/env
+.DS_Store
