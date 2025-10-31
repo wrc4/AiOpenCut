@@ -7,11 +7,22 @@
  * Check if the app is running in a Tauri desktop environment
  */
 export function isTauri(): boolean {
-  return (
-    typeof window !== "undefined" &&
-    !!(window as any).__TAURI_INTERNALS__ &&
-    !!(window as any).__TAURI__
-  );
+  if (typeof window === "undefined") {
+    console.log("isTauri: window is undefined (server-side)");
+    return false;
+  }
+
+  const hasTauriInternals = !!(window as any).__TAURI_INTERNALS__;
+  const hasTauri = !!(window as any).__TAURI__;
+
+  console.log("isTauri detection:", {
+    hasWindow: typeof window !== "undefined",
+    hasTauriInternals,
+    hasTauri,
+    result: hasTauriInternals && hasTauri
+  });
+
+  return hasTauriInternals && hasTauri;
 }
 
 /**

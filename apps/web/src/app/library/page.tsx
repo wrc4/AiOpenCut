@@ -87,13 +87,22 @@ export default function LibraryPage() {
   const importFolder = async () => {
     setIsScanning(true);
     try {
+      // Debug logging for platform detection
+      console.log("Platform detection results:");
+      console.log("isTauri():", isTauri());
+      console.log("isFileSystemAccessApiAvailable():", isFileSystemAccessApiAvailable());
+      console.log("Platform utilities check complete");
+
       if (isTauri()) {
+        console.log("Detected desktop environment, using importFolderDesktop");
         // Desktop: Use Tauri's dialog API
         await importFolderDesktop();
       } else if (isFileSystemAccessApiAvailable()) {
+        console.log("Detected web environment with File System Access API, using importFolderWeb");
         // Web: Use File System Access API
         await importFolderWeb();
       } else {
+        console.log("No supported platform detected, showing error message");
         alert(getPlatformErrorMessage("folder import"));
       }
     } catch (error) {
@@ -109,8 +118,10 @@ export default function LibraryPage() {
   // Desktop folder import using Tauri APIs
   const importFolderDesktop = async () => {
     try {
+      console.log("importFolderDesktop called - showing desktop message");
       // For now, show a message that desktop import is coming soon
       alert("Desktop folder import is coming soon! For now, please use the web version in Chrome/Edge to import folders.");
+      console.log("Desktop message shown successfully");
 
       // TODO: Full desktop implementation will be enabled once Tauri APIs are properly integrated
       // The architecture is ready - we just need to resolve the module import issues
