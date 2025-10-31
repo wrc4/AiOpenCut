@@ -85,6 +85,7 @@ export default function LibraryPage() {
 
   // Import folder using platform-appropriate method
   const importFolder = async () => {
+    console.log("=== IMPORT FOLDER BUTTON CLICKED ===");
     setIsScanning(true);
     try {
       // Debug logging for platform detection
@@ -103,14 +104,19 @@ export default function LibraryPage() {
         await importFolderWeb();
       } else {
         console.log("No supported platform detected, showing error message");
+        console.log("About to call alert with error message");
         alert(getPlatformErrorMessage("folder import"));
+        console.log("Alert completed");
       }
     } catch (error) {
-      console.error("Failed to import folder:", error);
+      console.error("=== ERROR in importFolder ===", error);
+      console.error("Error name:", (error as any)?.name);
+      console.error("Error message:", (error as any)?.message);
       if (error instanceof Error && error.name !== "AbortError") {
         alert(`Failed to import folder: ${error.message}`);
       }
     } finally {
+      console.log("=== importFolder completed ===");
       setIsScanning(false);
     }
   };
@@ -118,10 +124,31 @@ export default function LibraryPage() {
   // Desktop folder import using Tauri APIs
   const importFolderDesktop = async () => {
     try {
-      console.log("importFolderDesktop called - showing desktop message");
+      console.log("=== importFolderDesktop STARTED ===");
+      console.log("About to show desktop alert message");
+
       // For now, show a message that desktop import is coming soon
-      alert("Desktop folder import is coming soon! For now, please use the web version in Chrome/Edge to import folders.");
-      console.log("Desktop message shown successfully");
+      const message = "Desktop folder import is coming soon! For now, please use the web version in Chrome/Edge to import folders.";
+      console.log("Message content:", message);
+
+      // Try different alert methods in case one is blocked
+      try {
+        alert(message);
+        console.log("Standard alert() succeeded");
+      } catch (alertError) {
+        console.error("Standard alert() failed:", alertError);
+        try {
+          // Fallback: use window.alert explicitly
+          window.alert(message);
+          console.log("window.alert() succeeded");
+        } catch (windowAlertError) {
+          console.error("window.alert() also failed:", windowAlertError);
+          // Last resort: log to console
+          console.log("ALERT MESSAGE (console fallback):", message);
+        }
+      }
+
+      console.log("=== importFolderDesktop COMPLETED ===");
 
       // TODO: Full desktop implementation will be enabled once Tauri APIs are properly integrated
       // The architecture is ready - we just need to resolve the module import issues

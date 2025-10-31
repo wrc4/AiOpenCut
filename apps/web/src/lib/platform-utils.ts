@@ -14,15 +14,18 @@ export function isTauri(): boolean {
 
   const hasTauriInternals = !!(window as any).__TAURI_INTERNALS__;
   const hasTauri = !!(window as any).__TAURI__;
+  const hasTauriIPC = !!(window as any).__TAURI_IPC__;
 
   console.log("isTauri detection:", {
     hasWindow: typeof window !== "undefined",
     hasTauriInternals,
     hasTauri,
-    result: hasTauriInternals && hasTauri
+    hasTauriIPC,
+    result: hasTauriInternals || hasTauri || hasTauriIPC
   });
 
-  return hasTauriInternals && hasTauri;
+  // More lenient detection - any Tauri indicator should be sufficient
+  return hasTauriInternals || hasTauri || hasTauriIPC;
 }
 
 /**
@@ -49,7 +52,7 @@ export function getPlatform(): "web" | "desktop" {
 /**
  * Platform-specific error messages
  */
-export function getPlatformErrorMessage(feature: string): string {
+export function getPlatformErrorMessage(_feature: string): string {
   if (isTauri()) {
     return `This feature requires desktop app updates. Please check for app updates.`;
   }
