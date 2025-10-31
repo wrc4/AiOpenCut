@@ -35,12 +35,19 @@ export function Header() {
           </Button>
         </Link>
       </div>
-      <Link href="/projects">
-        <Button size="sm" className="text-sm ml-2">
-          Projects
-          <ArrowRight className="h-4 w-4" />
-        </Button>
-      </Link>
+      <div className="flex items-center gap-2">
+        <Link href="/library">
+          <Button variant="text" className="text-sm p-0">
+            Library
+          </Button>
+        </Link>
+        <Link href="/projects">
+          <Button size="sm" className="text-sm">
+            Projects
+            <ArrowRight className="h-4 w-4" />
+          </Button>
+        </Link>
+      </div>
       <ThemeToggle className="mr-2" />
     </nav>
   );

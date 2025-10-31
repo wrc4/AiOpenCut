@@ -1,4 +1,4 @@
-import { runFfmpeg } from '../tauri-ffmpeg';
+import { runFfmpeg } from "../tauri-ffmpeg";
 
 async function exportConcat(inputPaths: string[], outputPath: string) {
   // Example concating using ffmpeg CLI with a temporary file list
@@ -8,14 +8,14 @@ async function exportConcat(inputPaths: string[], outputPath: string) {
 
   // Simplest direct spawn example:
   const args = [
-    '-i',
+    "-i",
     inputPaths[0], // simple single input example; replace with real args
-    '-c',
-    'copy',
+    "-c",
+    "copy",
     outputPath,
   ];
 
   await runFfmpeg(args, (line) => {
-    console.log('ffmpeg:', line);
+    console.log("ffmpeg:", line);
   });
 }
