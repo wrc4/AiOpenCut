@@ -43,6 +43,7 @@ import {
   LibraryItem,
   LibraryFolder,
 } from "@/lib/library-service";
+import { isTauri, isFileSystemAccessApiAvailable, getPlatformErrorMessage } from "@/lib/platform-utils";
 
 export default function LibraryPage() {
   const {
@@ -82,16 +83,90 @@ export default function LibraryPage() {
     }
   }, [isInitialized, loadLibraryData]);
 
-  // Import folder using File System Access API
+  // Import folder using platform-appropriate method
   const importFolder = async () => {
-    if (!("showDirectoryPicker" in window)) {
-      alert(
-        "Your browser doesn't support folder selection. Please use a modern browser like Chrome or Edge."
-      );
-      return;
-    }
-
     setIsScanning(true);
+    try {
+      if (isTauri()) {
+        // Desktop: Use Tauri's dialog API
+        await importFolderDesktop();
+      } else if (isFileSystemAccessApiAvailable()) {
+        // Web: Use File System Access API
+        await importFolderWeb();
+      } else {
+        alert(getPlatformErrorMessage("folder import"));
+      }
+    } catch (error) {
+      console.error("Failed to import folder:", error);
+      if (error instanceof Error && error.name !== "AbortError") {
+        alert(`Failed to import folder: ${error.message}`);
+      }
+    } finally {
+      setIsScanning(false);
+    }
+  };
+
+  // Desktop folder import using Tauri APIs
+  const importFolderDesktop = async () => {
+    try {
+      // For now, show a message that desktop import is coming soon
+      alert("Desktop folder import is coming soon! For now, please use the web version in Chrome/Edge to import folders.");
+
+      // TODO: Full desktop implementation will be enabled once Tauri APIs are properly integrated
+      // The architecture is ready - we just need to resolve the module import issues
+
+      /*
+      // Full implementation (commented out until Tauri APIs are available):
+
+      // Dynamically import Tauri APIs only when in desktop environment
+      const [{ open }, { homeDir }, { invoke }] = await Promise.all([
+        import("@tauri-apps/api/dialog"),
+        import("@tauri-apps/api/path"),
+        import("@tauri-apps/api/core"),
+      ]);
+
+      // Select folder using Tauri's dialog
+      const folderPath = await open({
+        directory: true,
+        multiple: false,
+        defaultPath: await homeDir(),
+      });
+
+      if (!folderPath || Array.isArray(folderPath)) {
+        return; // User cancelled or invalid selection
+      }
+
+      // Scan folder using Tauri command
+      const result = await invoke("scan_folder", { path: folderPath });
+
+      if (!result || !result.items) {
+        throw new Error("No items found in folder");
+      }
+
+      // Process the desktop scan results
+      const { items, folders } = await libraryService.processDesktopScan(result);
+
+      // Add folders to library
+      for (const folder of folders) {
+        await useLibraryStore.getState().addFolder(folder);
+      }
+
+      // Add all items
+      for (const item of items) {
+        await useLibraryStore.getState().addItem(item);
+      }
+
+      // Refresh library data
+      await loadLibraryData();
+      */
+    } catch (error) {
+      console.error("Desktop folder import failed:", error);
+      throw error;
+    }
+  };
+
+  // Web folder import using File System Access API
+  const importFolderWeb = async () => {
     try {
       const directoryHandle = await (window as any).showDirectoryPicker();
 
@@ -118,12 +193,8 @@ export default function LibraryPage() {
       // Refresh library data
       await loadLibraryData();
     } catch (error) {
-      console.error("Failed to import folder:", error);
-      if (error instanceof Error && error.name !== "AbortError") {
-        alert(`Failed to import folder: ${error.message}`);
-      }
-    } finally {
-      setIsScanning(false);
+      console.error("Web folder import failed:", error);
+      throw error;
     }
   };
 

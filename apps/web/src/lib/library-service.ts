@@ -425,6 +425,57 @@ class LibraryService {
       throw error;
     }
   }
+
+  /**
+   * Process desktop scan results from Tauri backend
+   * Converts the Rust backend response format to our LibraryItem format
+   */
+  async processDesktopScan(result: any): Promise<{
+    items: LibraryItem[];
+    folders: LibraryFolder[];
+  }> {
+    const items: LibraryItem[] = [];
+    const folders: LibraryFolder[] = [];
+
+    try {
+      // Process items from desktop scan
+      if (result.items && Array.isArray(result.items)) {
+        for (const item of result.items) {
+          const libraryItem: LibraryItem = {
+            id: item.id || `${item.name}-${Date.now()}`,
+            name: item.name,
+            type: item.item_type || item.type || "other",
+            size: item.size,
+            lastModified: item.last_modified,
+            thumbnail: item.thumbnail,
+            duration: item.duration,
+            width: item.width,
+            height: item.height,
+          };
+          items.push(libraryItem);
+        }
+      }
+
+      // Process folders from desktop scan
+      if (result.folders && Array.isArray(result.folders)) {
+        for (const folder of result.folders) {
+          const libraryFolder: LibraryFolder = {
+            id: folder.id,
+            name: folder.name,
+            path: folder.path,
+            itemCount: folder.item_count || 0,
+            lastScanned: folder.last_scanned,
+          };
+          folders.push(libraryFolder);
+        }
+      }
+
+      return { items, folders };
+    } catch (error) {
+      console.error("Failed to process desktop scan results:", error);
+      throw error;
+    }
+  }
 }
 
 // Export singleton instance
