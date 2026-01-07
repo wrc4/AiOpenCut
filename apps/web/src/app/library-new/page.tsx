@@ -15,6 +15,9 @@ import {
   Upload,
   Grid,
   List,
+  AlertCircle,
+  CheckCircle,
+  Clock,
 } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
@@ -37,210 +40,126 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { useLibraryStore } from "@/stores/library-store";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Progress } from "@/components/ui/progress";
 import {
-  libraryService,
+  getEnhancedLibraryService,
   LibraryItem,
   LibraryFolder,
-} from "@/lib/library-service";
-import { isTauri, isFileSystemAccessApiAvailable, getPlatformErrorMessage } from "@/lib/platform-utils";
+} from "@/lib/library-service-new";
+import { isFileSystemAccessApiAvailable, getPlatformErrorMessage } from "@/lib/platform-utils";
 
-export default function LibraryPage() {
-  const {
-    libraryData,
-    isLoading,
-    isInitialized,
-    selectedItems,
-    isSelectionMode,
-    viewMode,
-    sortOption,
-    searchQuery,
-    initializeLibrary,
-    loadLibraryData,
-    setSelectedItems,
-    setSelectionMode,
-    setViewMode,
-    setSortOption,
-    setSearchQuery,
-    clearSelection,
-    getFilteredAndSortedItems,
-  } = useLibraryStore();
-
+export default function EnhancedLibraryPage() {
+  const [isLoading, setIsLoading] = useState(true);
   const [isScanning, setIsScanning] = useState(false);
-  const [currentFolder, setCurrentFolder] = useState<string>("/");
+  const [libraryData, setLibraryData] = useState<{
+    folders: LibraryFolder[];
+    items: LibraryItem[];
+    settings: any;
+  } | null>(null);
+  const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set());
+  const [isSelectionMode, setIsSelectionMode] = useState(false);
+  const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
+  const [sortOption, setSortOption] = useState("name-asc");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [refreshStatus, setRefreshStatus] = useState<{
+    successful: number;
+    failed: number;
+    total: number;
+  } | null>(null);
+  const [scanProgress, setScanProgress] = useState(0);
+  const [error, setError] = useState<string | null>(null);
+
+  const libraryService = getEnhancedLibraryService();
 
   // Initialize library on mount
   useEffect(() => {
-    if (!isInitialized) {
-      initializeLibrary();
-    }
-  }, [isInitialized, initializeLibrary]);
+    initializeLibrary();
+  }, []);
 
-  // Load library data when initialized
-  useEffect(() => {
-    if (isInitialized) {
-      loadLibraryData();
-    }
-  }, [isInitialized, loadLibraryData]);
-
-  // Import folder using platform-appropriate method
-  const importFolder = async () => {
-    console.log("=== IMPORT FOLDER BUTTON CLICKED ===");
-    setIsScanning(true);
+  const initializeLibrary = async () => {
     try {
-      // Debug logging for platform detection
-      console.log("Platform detection results:");
-      console.log("isTauri():", isTauri());
-      console.log("isFileSystemAccessApiAvailable():", isFileSystemAccessApiAvailable());
-      console.log("Platform utilities check complete");
-
-      if (isTauri()) {
-        console.log("Detected desktop environment, using importFolderDesktop");
-        // Desktop: Use Tauri's dialog API
-        await importFolderDesktop();
-      } else if (isFileSystemAccessApiAvailable()) {
-        console.log("Detected web environment with File System Access API, using importFolderWeb");
-        // Web: Use File System Access API
-        await importFolderWeb();
-      } else {
-        console.log("No supported platform detected, showing error message");
-        console.log("About to call alert with error message");
-        alert(getPlatformErrorMessage("folder import"));
-        console.log("Alert completed");
-      }
+      setIsLoading(true);
+      setError(null);
+      const data = await libraryService.initializeLibrary();
+      setLibraryData(data);
     } catch (error) {
-      console.error("=== ERROR in importFolder ===", error);
-      console.error("Error name:", (error as any)?.name);
-      console.error("Error message:", (error as any)?.message);
-      if (error instanceof Error && error.name !== "AbortError") {
-        alert(`Failed to import folder: ${error.message}`);
-      }
+      console.error("Failed to initialize library:", error);
+      setError("Failed to initialize library. Please refresh the page.");
     } finally {
-      console.log("=== importFolder completed ===");
-      setIsScanning(false);
+      setIsLoading(false);
     }
   };
 
-  // Desktop folder import using Tauri APIs
-  const importFolderDesktop = async () => {
+  // Import folder using enhanced file system
+  const importFolder = async () => {
+    setIsScanning(true);
+    setError(null);
+    setScanProgress(0);
+
     try {
-      console.log("=== importFolderDesktop STARTED ===");
-      console.log("About to show desktop alert message");
-
-      // For now, show a message that desktop import is coming soon
-      const message = "Desktop folder import is coming soon! For now, please use the web version in Chrome/Edge to import folders.";
-      console.log("Message content:", message);
-
-      // Try different alert methods in case one is blocked
-      try {
-        alert(message);
-        console.log("Standard alert() succeeded");
-      } catch (alertError) {
-        console.error("Standard alert() failed:", alertError);
-        try {
-          // Fallback: use window.alert explicitly
-          window.alert(message);
-          console.log("window.alert() succeeded");
-        } catch (windowAlertError) {
-          console.error("window.alert() also failed:", windowAlertError);
-          // Last resort: log to console
-          console.log("ALERT MESSAGE (console fallback):", message);
-        }
-      }
-
-      console.log("=== importFolderDesktop COMPLETED ===");
-
-      // Desktop implementation is disabled for web-only focus
-      // The architecture is ready for future Electron integration
-      alert("Desktop import is not available. Please use the web version with Chrome/Edge.");
-      return;
-
-      /*
-      // Full desktop implementation (disabled for web-only focus):
-
-      // Dynamically import Tauri APIs only when in desktop environment
-      try {
-        const [{ open }, { homeDir }, { invoke }] = await Promise.all([
-          import("@tauri-apps/api/dialog"),
-          import("@tauri-apps/api/path"),
-          import("@tauri-apps/api/core"),
-        ]);
-
-        // Select folder using Tauri's dialog
-        const folderPath = await open({
-          directory: true,
-          multiple: false,
-          defaultPath: await homeDir(),
-        });
-
-        if (!folderPath || Array.isArray(folderPath)) {
-          return; // User cancelled or invalid selection
-        }
-
-        // Scan folder using Tauri command
-        const result = await invoke("scan_folder", { path: folderPath });
-      } catch (error) {
-        console.error("Desktop import failed:", error);
-        alert("Desktop import is not available. Please use the web version with Chrome/Edge.");
+      if (!isFileSystemAccessApiAvailable()) {
+        alert(getPlatformErrorMessage("folder import"));
         return;
       }
 
-      if (!result || !result.items) {
-        throw new Error("No items found in folder");
+      console.log("Starting enhanced folder import...");
+      const result = await libraryService.importDirectory();
+      console.log("Import completed:", result);
+
+      // Add to library
+      await libraryService.addFolder(result.directory);
+      for (const file of result.files) {
+        await libraryService.addItem(file);
       }
 
-      // Process the desktop scan results
-      const { items, folders } = await libraryService.processDesktopScan(result);
-
-      // Add folders to library
-      for (const folder of folders) {
-        await useLibraryStore.getState().addFolder(folder);
-      }
-
-      // Add all items
-      for (const item of items) {
-        await useLibraryStore.getState().addItem(item);
+      // Generate thumbnails for videos
+      let processedCount = 0;
+      for (const file of result.files) {
+        if (file.type === "video") {
+          try {
+            const thumbnail = await libraryService.generateThumbnail(file);
+            if (thumbnail) {
+              await libraryService.saveThumbnail(file.id, await fetch(thumbnail).then(r => r.blob()));
+              // Update item with thumbnail
+              await libraryService.addItem({ ...file, thumbnail });
+            }
+          } catch (thumbError) {
+            console.warn(`Failed to generate thumbnail for ${file.name}:`, thumbError);
+          }
+        }
+        processedCount++;
+        setScanProgress((processedCount / result.files.length) * 100);
       }
 
       // Refresh library data
-      await loadLibraryData();
-      */
+      const updatedData = await libraryService.getLibraryData();
+      setLibraryData(updatedData);
+
+      console.log(`Successfully imported ${result.files.length} files from ${result.directory.name}`);
     } catch (error) {
-      console.error("Desktop folder import failed:", error);
-      throw error;
+      console.error("Failed to import folder:", error);
+      if (error instanceof Error && error.name !== "AbortError") {
+        setError(`Failed to import folder: ${error.message}`);
+      }
+    } finally {
+      setIsScanning(false);
+      setScanProgress(0);
     }
   };
 
-  // Web folder import using File System Access API
-  const importFolderWeb = async () => {
+  // Refresh file handles
+  const refreshFileHandles = async () => {
     try {
-      const directoryHandle = await (window as any).showDirectoryPicker();
-
-      // Scan the folder
-      const { items, folders } =
-        await libraryService.scanFolder(directoryHandle);
-
-      // Add folder to library
-      const folder: LibraryFolder = {
-        id: directoryHandle.name,
-        name: directoryHandle.name,
-        path: `/${directoryHandle.name}`,
-        itemCount: items.length,
-        lastScanned: new Date().toISOString(),
-      };
-
-      await useLibraryStore.getState().addFolder(folder);
-
-      // Add all items
-      for (const item of items) {
-        await useLibraryStore.getState().addItem(item);
-      }
-
-      // Refresh library data
-      await loadLibraryData();
+      setIsScanning(true);
+      const status = await libraryService.refreshFileHandles();
+      setRefreshStatus(status);
+      console.log("File handle refresh completed:", status);
     } catch (error) {
-      console.error("Web folder import failed:", error);
-      throw error;
+      console.error("Failed to refresh file handles:", error);
+      setError("Failed to refresh file handles");
+    } finally {
+      setIsScanning(false);
     }
   };
 
@@ -269,7 +188,53 @@ export default function LibraryPage() {
     const mins = Math.floor(seconds / 60);
     const secs = Math.floor(seconds % 60);
     return `${mins}:${secs.toString().padStart(2, "0")}`;
-  };
+  }
+
+  // Get filtered and sorted items
+  const getFilteredAndSortedItems = useCallback(() => {
+    if (!libraryData) return [];
+
+    let items = [...libraryData.items];
+
+    // Apply search filter
+    if (searchQuery) {
+      items = items.filter((item) =>
+        item.name.toLowerCase().includes(searchQuery.toLowerCase())
+      );
+    }
+
+    // Apply sorting
+    switch (sortOption) {
+      case "name-asc":
+        items.sort((a, b) => a.name.localeCompare(b.name));
+        break;
+      case "name-desc":
+        items.sort((a, b) => b.name.localeCompare(a.name));
+        break;
+      case "date-desc":
+        items.sort((a, b) => {
+          const dateA = a.lastModified ? new Date(a.lastModified).getTime() : 0;
+          const dateB = b.lastModified ? new Date(b.lastModified).getTime() : 0;
+          return dateB - dateA;
+        });
+        break;
+      case "date-asc":
+        items.sort((a, b) => {
+          const dateA = a.lastModified ? new Date(a.lastModified).getTime() : 0;
+          const dateB = b.lastModified ? new Date(b.lastModified).getTime() : 0;
+          return dateA - dateB;
+        });
+        break;
+      case "size-desc":
+        items.sort((a, b) => (b.size || 0) - (a.size || 0));
+        break;
+      case "size-asc":
+        items.sort((a, b) => (a.size || 0) - (b.size || 0));
+        break;
+    }
+
+    return items;
+  }, [libraryData, searchQuery, sortOption]);
 
   const filteredAndSortedItems = getFilteredAndSortedItems();
   const folders = libraryData?.folders || [];
@@ -277,7 +242,6 @@ export default function LibraryPage() {
   // Cleanup thumbnails on unmount
   useEffect(() => {
     return () => {
-      // Cleanup any object URLs that might have been created
       if (libraryData?.items) {
         libraryData.items.forEach((item) => {
           if (item.thumbnail?.startsWith("blob:")) {
@@ -302,13 +266,13 @@ export default function LibraryPage() {
           <Button
             variant="outline"
             size="sm"
-            onClick={loadLibraryData}
+            onClick={refreshFileHandles}
             disabled={isLoading || isScanning}
           >
             <RefreshCw
-              className={`size-4! ${isLoading ? "animate-spin" : ""}`}
+              className={`size-4! ${isScanning ? "animate-spin" : ""}`}
             />
-            Refresh
+            Refresh Handles
           </Button>
           <Button size="sm" onClick={importFolder} disabled={isScanning}>
             <Upload className="size-4!" />
@@ -321,7 +285,7 @@ export default function LibraryPage() {
         <div className="mb-8 flex items-center justify-between">
           <div className="flex flex-col gap-3">
             <h1 className="text-2xl md:text-3xl font-bold tracking-tight">
-              Video Library
+              Enhanced Video Library
             </h1>
             <p className="text-muted-foreground">
               {filteredAndSortedItems.length} items • {folders.length} folders
@@ -372,6 +336,35 @@ export default function LibraryPage() {
             </div>
           </div>
         </div>
+
+        {/* Progress Bar */}
+        {isScanning && scanProgress > 0 && (
+          <div className="mb-6">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-sm text-muted-foreground">Processing files...</span>
+              <span className="text-sm text-muted-foreground">{Math.round(scanProgress)}%</span>
+            </div>
+            <Progress value={scanProgress} className="h-2" />
+          </div>
+        )}
+
+        {/* Error Alert */}
+        {error && (
+          <Alert variant="destructive" className="mb-6">
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        )}
+
+        {/* Refresh Status */}
+        {refreshStatus && (
+          <Alert className="mb-6">
+            <CheckCircle className="h-4 w-4" />
+            <AlertDescription>
+              File handle refresh completed: {refreshStatus.successful} accessible, {refreshStatus.failed} failed out of {refreshStatus.total} total items.
+            </AlertDescription>
+          </Alert>
+        )}
 
         <div className="mb-6 flex items-center justify-between gap-4">
           <div className="flex-1 max-w-96">
@@ -447,10 +440,10 @@ export default function LibraryPage() {
               <h2 className="text-lg font-semibold mb-3">Folders</h2>
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
                 {folders.map((folder) => (
-                  <FolderCard
+                  <EnhancedFolderCard
                     key={folder.id}
                     folder={folder}
-                    onClick={() => setCurrentFolder(folder.path)}
+                    onClick={() => {}}
                   />
                 ))}
               </div>
@@ -463,15 +456,15 @@ export default function LibraryPage() {
         {isLoading ? (
           <div className="grid grid-cols-1 xs:grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
             {Array.from({ length: 10 }, (_, index) => (
-              <LibraryItemSkeleton key={index} viewMode={viewMode} />
+              <EnhancedLibraryItemSkeleton key={index} viewMode={viewMode} />
             ))}
           </div>
         ) : filteredAndSortedItems.length === 0 ? (
-          <EmptyLibrary onImport={importFolder} />
+          <EnhancedEmptyLibrary onImport={importFolder} />
         ) : viewMode === "grid" ? (
           <div className="grid grid-cols-1 xs:grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
             {filteredAndSortedItems.map((item) => (
-              <LibraryItemCard
+              <EnhancedLibraryItemCard
                 key={item.id}
                 item={item}
                 isSelectionMode={isSelectionMode}
@@ -485,7 +478,7 @@ export default function LibraryPage() {
         ) : (
           <div className="space-y-2">
             {filteredAndSortedItems.map((item) => (
-              <LibraryItemList
+              <EnhancedLibraryItemList
                 key={item.id}
                 item={item}
                 isSelectionMode={isSelectionMode}
@@ -502,12 +495,12 @@ export default function LibraryPage() {
   );
 }
 
-interface FolderCardProps {
+interface EnhancedFolderCardProps {
   folder: LibraryFolder;
   onClick: () => void;
 }
 
-function FolderCard({ folder, onClick }: FolderCardProps) {
+function EnhancedFolderCard({ folder, onClick }: EnhancedFolderCardProps) {
   return (
     <Card
       className="p-4 hover:bg-muted/50 transition-colors cursor-pointer group"
@@ -520,13 +513,18 @@ function FolderCard({ folder, onClick }: FolderCardProps) {
           <p className="text-xs text-muted-foreground">
             {folder.itemCount} items
           </p>
+          {folder.fileSystemType && (
+            <Badge variant="outline" className="text-xs">
+              {folder.fileSystemType}
+            </Badge>
+          )}
         </div>
       </div>
     </Card>
   );
 }
 
-interface LibraryItemCardProps {
+interface EnhancedLibraryItemCardProps {
   item: LibraryItem;
   isSelectionMode: boolean;
   isSelected: boolean;
@@ -535,14 +533,14 @@ interface LibraryItemCardProps {
   formatDuration: (seconds?: number) => string;
 }
 
-function LibraryItemCard({
+function EnhancedLibraryItemCard({
   item,
   isSelectionMode,
   isSelected,
   onSelect,
   formatFileSize,
   formatDuration,
-}: LibraryItemCardProps) {
+}: EnhancedLibraryItemCardProps) {
   const getIcon = () => {
     switch (item.type) {
       case "video":
@@ -615,6 +613,11 @@ function LibraryItemCard({
               </span>
             )}
           </div>
+          {item.fileHandleId && (
+            <Badge variant="outline" className="text-xs">
+              Linked
+            </Badge>
+          )}
         </div>
       </CardContent>
     </Card>
@@ -633,7 +636,7 @@ function LibraryItemCard({
   );
 }
 
-interface LibraryItemListProps {
+interface EnhancedLibraryItemListProps {
   item: LibraryItem;
   isSelectionMode: boolean;
   isSelected: boolean;
@@ -642,14 +645,14 @@ interface LibraryItemListProps {
   formatDuration: (seconds?: number) => string;
 }
 
-function LibraryItemList({
+function EnhancedLibraryItemList({
   item,
   isSelectionMode,
   isSelected,
   onSelect,
   formatFileSize,
   formatDuration,
-}: LibraryItemListProps) {
+}: EnhancedLibraryItemListProps) {
   const getIcon = () => {
     switch (item.type) {
       case "video":
@@ -703,6 +706,11 @@ function LibraryItemList({
               {item.lastModified && (
                 <span>{new Date(item.lastModified).toLocaleDateString()}</span>
               )}
+              {item.fileHandleId && (
+                <Badge variant="outline" className="text-xs">
+                  Linked
+                </Badge>
+              )}
             </div>
           </div>
         </div>
@@ -715,7 +723,7 @@ function LibraryItemList({
   );
 }
 
-function LibraryItemSkeleton({ viewMode }: { viewMode: "grid" | "list" }) {
+function EnhancedLibraryItemSkeleton({ viewMode }: { viewMode: "grid" | "list" }) {
   if (viewMode === "list") {
     return (
       <Card className="p-4">
@@ -742,7 +750,7 @@ function LibraryItemSkeleton({ viewMode }: { viewMode: "grid" | "list" }) {
   );
 }
 
-function EmptyLibrary({ onImport }: { onImport: () => Promise<void> }) {
+function EnhancedEmptyLibrary({ onImport }: { onImport: () => Promise<void> }) {
   return (
     <div className="flex flex-col items-center justify-center py-16 text-center">
       <div className="w-16 h-16 rounded-full bg-muted/30 flex items-center justify-center mb-4">
@@ -751,7 +759,7 @@ function EmptyLibrary({ onImport }: { onImport: () => Promise<void> }) {
       <h3 className="text-lg font-medium mb-2">No library content</h3>
       <p className="text-muted-foreground mb-6 max-w-md">
         Import a folder to browse your video materials, images, and audio files.
-        Your content stays local and private.
+        Files are referenced without copying - they stay in their original location.
       </p>
       <Button size="lg" className="gap-2" onClick={onImport}>
         <Upload className="h-4 w-4" />
@@ -760,3 +768,5 @@ function EmptyLibrary({ onImport }: { onImport: () => Promise<void> }) {
     </div>
   );
 }
+
+export default EnhancedLibraryPage;
