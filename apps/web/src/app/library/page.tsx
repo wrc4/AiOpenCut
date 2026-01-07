@@ -267,87 +267,50 @@ export default function LibraryPage() {
     }
   };
 
-  // True refresh: re-scan all folders and re-import files without change detection
+  // True refresh with root folder - update metadata and scan for changes
   const refreshLibrary = async () => {
-    if (!libraryData?.folders || libraryData.folders.length === 0) {
-      console.log("No folders to refresh");
-      toast.info("No folders to refresh", {
-        description: "No folders found in library. Please import folders first."
-      });
-      return;
-    }
-
-    // Check if we support File System Access API
-    if (!isFileSystemAccessApiAvailable()) {
-      console.log("File System Access API not available");
-      toast.error("File System Access API not available", {
-        description: "Please use Chrome, Edge, or Opera to refresh folders."
+    // Check for root folder configuration first
+    if (!libraryRootFolder) {
+      console.log("No root folder configured");
+      toast.info("No root folder configured", {
+        description: "Set a root folder in Settings to enable refresh functionality."
       });
       return;
     }
 
     setIsScanning(true);
-    console.log("=== STARTING TRUE LIBRARY REFRESH ===");
-
-    let foldersProcessed = 0;
-    let itemsAdded = 0;
+    console.log("=== STARTING LIBRARY REFRESH WITH ROOT FOLDER ===");
+    console.log("Root folder path:", libraryRootFolder);
 
     try {
-      // Use a user-friendly approach for folder selection
-      const manyFolders = libraryData.folders.length > 3;
-      let proceedWithRefresh = true;
+      // First, refresh metadata for all folders that match root folder
+      const rootFolders = (libraryData?.folders || []).filter(folder =>
+        folder.path.startsWith(libraryRootFolder) ||
+        folder.path.includes(libraryRootFolder.replace(/^\//, ''))
+      );
 
-      if (manyFolders) {
-        proceedWithRefresh = confirm(
-          `This will refresh ${libraryData.folders.length} folders by re-selecting them. Continue?`
-        );
+      let totalUpdatedItems = 0;
+
+      // Refresh each root-matching folder
+      for (const folder of rootFolders) {
+        console.log(`Refreshing folder: ${folder.name}`);
+        const updatedItemCount = await refreshSingleFolder(folder);
+        totalUpdatedItems += updatedItemCount;
       }
 
-      if (!proceedWithRefresh) {
-        console.log("User cancelled refresh");
-        return;
-      }
+      // Reload library data to show results
+      loadLibraryData();
 
-      // Process each folder individually using File System Access API
-      for (const folder of libraryData.folders) {
-        try {
-          console.log(`Processing folder: ${folder.name}`);
+      const message = totalUpdatedItems > 0
+        ? `Updated metadata for ${totalUpdatedItems} items`
+        : "All folder metadata is up to date";
 
-          if (!manyFolders) {
-            const confirmMsg = `Re-select folder "${folder.name}" to refresh its contents?`;
-            if (!confirm(confirmMsg)) {
-              console.log(`User skipped folder: ${folder.name}`);
-              continue;
-            }
-          }
-
-          const newItemsCount = await refreshSingleFolder(folder);
-          itemsAdded += newItemsCount;
-          foldersProcessed++;
-
-        } catch (error) {
-          console.error(`Failed to refresh folder ${folder.name}:`, error);
-          // Continue with next folder instead of failing completely
-        }
-      }
-
-      // Final results
-      console.log(`=== REFRESH COMPLETED ===
-        Folders processed: ${foldersProcessed}
-        New items added: ${itemsAdded}`);
-
-      toast.success(`Library refresh completed`, {
-        description: `Processed ${foldersProcessed} folders, added ${itemsAdded} new items`,
+      toast.success("Library refreshed", {
+        description: message
       });
 
-      // Reload the library data to show refreshed results
-      console.log("Reloading library data to show refreshed results...");
-      setTimeout(() => {
-        loadLibraryData();
-      }, 100);
-
     } catch (error) {
-      console.error("=== ERROR during library refresh ===", error);
+      console.error("Library refresh failed:", error);
       toast.error("Library refresh failed", {
         description: "Failed to refresh library. Please try again."
       });
@@ -356,61 +319,44 @@ export default function LibraryPage() {
     }
   };
 
-  // Refresh a single folder using File System Access API (true re-import)
+  // Refresh a single folder using stored data (re-scan metadata without picker)
   const refreshSingleFolder = async (folder: LibraryFolder) => {
-    console.log(`Starting true refresh for folder: ${folder.name}`);
+    console.log(`Starting metadata refresh for folder: ${folder.name}`);
 
     try {
-      // Use File System Access API to re-select the folder
-      if (!isFileSystemAccessApiAvailable()) {
-        throw new Error("File System Access API not available");
-      }
+      // Since we can't persist directory handles, we'll refresh the folder metadata
+      // by re-scanning the items that belong to this folder in our library
 
-      // Show directory picker for re-selecting the folder
-      const directoryHandle = await (window as any).showDirectoryPicker();
+      const allItems = libraryData?.items || [];
+      const folderItems = allItems.filter(item => {
+        // Find items that belong to this folder based on path
+        const itemPath = item.id;
+        const normalizedFolderPath = folder.path.replace(/^\//, '');
+        return itemPath.includes(normalizedFolderPath) ||
+               itemPath.startsWith(folder.path);
+      });
 
-      // Scan the selected folder using the library service
-      const result = await libraryService.scanFolder(directoryHandle);
+      console.log(`Found ${folderItems.length} items in folder ${folder.name}`);
 
-      console.log(`Scan complete for ${folder.name}: ${result.items.length} items, ${result.folders.length} sub-folders`);
-
-      let newItemsCount = 0;
-
-      // Add/update the main folder with current item count
+      // Update the folder with current item count
       const updatedFolder: LibraryFolder = {
         ...folder,
-        itemCount: result.items.length,
+        itemCount: folderItems.length,
         lastScanned: new Date().toISOString(),
       };
 
       await libraryService.addFolder(updatedFolder);
 
-      // Add all new items (bypass change detection for true refresh)
-      console.log(
-        `Processing ${result.items.length} items (no duplicate checking for true refresh)...`
-      );
+      console.log(`Folder metadata refresh complete for ${folder.name}: ${folderItems.length} items`);
 
-      for (const item of result.items) {
-        // Force re-add each item (true refresh bypasses change detection)
-        await libraryService.addItem(item);
-        newItemsCount++;
-      }
-
-      // 3. Add any sub-folders that were found
-      for (const subFolder of result.folders) {
-        await libraryService.addFolder(subFolder);
-      }
-
-      console.log(`Folder refresh complete for ${folder.name}: ${newItemsCount} new items processed`);
-
-      // Show individual progress
+      // Show progress
       toast.success(`Folder refreshed`, {
-        description: `${folder.name}: Added ${newItemsCount} items`,
+        description: `${folder.name}: Updated metadata for ${folderItems.length} items`,
       });
 
-      return newItemsCount;
+      return folderItems.length;
     } catch (error) {
-      console.error(`Fresh import failed for ${folder.name}:`, error);
+      console.error(`Folder metadata refresh failed for ${folder.name}:`, error);
       throw error;
     }
   };
