@@ -267,7 +267,153 @@ export default function LibraryPage() {
     }
   };
 
-  // Desktop folder import using Tauri APIs
+  // True refresh: re-scan all folders and re-import files without change detection
+  const refreshLibrary = async () => {
+    if (!libraryData?.folders || libraryData.folders.length === 0) {
+      console.log("No folders to refresh");
+      toast.info("No folders to refresh", {
+        description: "No folders found in library. Please import folders first."
+      });
+      return;
+    }
+
+    // Check if we support File System Access API
+    if (!isFileSystemAccessApiAvailable()) {
+      console.log("File System Access API not available");
+      toast.error("File System Access API not available", {
+        description: "Please use Chrome, Edge, or Opera to refresh folders."
+      });
+      return;
+    }
+
+    setIsScanning(true);
+    console.log("=== STARTING TRUE LIBRARY REFRESH ===");
+
+    let foldersProcessed = 0;
+    let itemsAdded = 0;
+
+    try {
+      // Use a user-friendly approach for folder selection
+      const manyFolders = libraryData.folders.length > 3;
+      let proceedWithRefresh = true;
+
+      if (manyFolders) {
+        proceedWithRefresh = confirm(
+          `This will refresh ${libraryData.folders.length} folders by re-selecting them. Continue?`
+        );
+      }
+
+      if (!proceedWithRefresh) {
+        console.log("User cancelled refresh");
+        return;
+      }
+
+      // Process each folder individually using File System Access API
+      for (const folder of libraryData.folders) {
+        try {
+          console.log(`Processing folder: ${folder.name}`);
+
+          if (!manyFolders) {
+            const confirmMsg = `Re-select folder "${folder.name}" to refresh its contents?`;
+            if (!confirm(confirmMsg)) {
+              console.log(`User skipped folder: ${folder.name}`);
+              continue;
+            }
+          }
+
+          const newItemsCount = await refreshSingleFolder(folder);
+          itemsAdded += newItemsCount;
+          foldersProcessed++;
+
+        } catch (error) {
+          console.error(`Failed to refresh folder ${folder.name}:`, error);
+          // Continue with next folder instead of failing completely
+        }
+      }
+
+      // Final results
+      console.log(`=== REFRESH COMPLETED ===
+        Folders processed: ${foldersProcessed}
+        New items added: ${itemsAdded}`);
+
+      toast.success(`Library refresh completed`, {
+        description: `Processed ${foldersProcessed} folders, added ${itemsAdded} new items`,
+      });
+
+      // Reload the library data to show refreshed results
+      console.log("Reloading library data to show refreshed results...");
+      setTimeout(() => {
+        loadLibraryData();
+      }, 100);
+
+    } catch (error) {
+      console.error("=== ERROR during library refresh ===", error);
+      toast.error("Library refresh failed", {
+        description: "Failed to refresh library. Please try again."
+      });
+    } finally {
+      setIsScanning(false);
+    }
+  };
+
+  // Refresh a single folder using File System Access API (true re-import)
+  const refreshSingleFolder = async (folder: LibraryFolder) => {
+    console.log(`Starting true refresh for folder: ${folder.name}`);
+
+    try {
+      // Use File System Access API to re-select the folder
+      if (!isFileSystemAccessApiAvailable()) {
+        throw new Error("File System Access API not available");
+      }
+
+      // Show directory picker for re-selecting the folder
+      const directoryHandle = await (window as any).showDirectoryPicker();
+
+      // Scan the selected folder using the library service
+      const result = await libraryService.scanFolder(directoryHandle);
+
+      console.log(`Scan complete for ${folder.name}: ${result.items.length} items, ${result.folders.length} sub-folders`);
+
+      let newItemsCount = 0;
+
+      // Add/update the main folder with current item count
+      const updatedFolder: LibraryFolder = {
+        ...folder,
+        itemCount: result.items.length,
+        lastScanned: new Date().toISOString(),
+      };
+
+      await libraryService.addFolder(updatedFolder);
+
+      // Add all new items (bypass change detection for true refresh)
+      console.log(
+        `Processing ${result.items.length} items (no duplicate checking for true refresh)...`
+      );
+
+      for (const item of result.items) {
+        // Force re-add each item (true refresh bypasses change detection)
+        await libraryService.addItem(item);
+        newItemsCount++;
+      }
+
+      // 3. Add any sub-folders that were found
+      for (const subFolder of result.folders) {
+        await libraryService.addFolder(subFolder);
+      }
+
+      console.log(`Folder refresh complete for ${folder.name}: ${newItemsCount} new items processed`);
+
+      // Show individual progress
+      toast.success(`Folder refreshed`, {
+        description: `${folder.name}: Added ${newItemsCount} items`,
+      });
+
+      return newItemsCount;
+    } catch (error) {
+      console.error(`Fresh import failed for ${folder.name}:`, error);
+      throw error;
+    }
+  };
   const importFolderDesktop = async () => {
     try {
       console.log("=== importFolderDesktop STARTED ===");
@@ -485,7 +631,7 @@ export default function LibraryPage() {
           <Button
             variant="outline"
             size="sm"
-            onClick={scanExistingFolders}
+            onClick={refreshLibrary}
             disabled={isLoading || isScanning}
           >
             <RefreshCw
@@ -658,7 +804,7 @@ export default function LibraryPage() {
           </div>
         ) : rootFilteredItems.length === 0 ? (
           <EmptyLibrary
-            onScan={scanExistingFolders}
+            onScan={refreshLibrary}
             isScanning={isLoading || isScanning}
             hasRootFolder={!!libraryRootFolder}
           />
