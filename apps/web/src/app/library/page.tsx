@@ -50,6 +50,7 @@ import {
   isFileSystemAccessApiAvailable,
   getPlatformErrorMessage,
 } from "@/lib/platform-utils";
+import { toast } from "sonner";
 
 export default function LibraryPage() {
   const {
@@ -76,9 +77,13 @@ export default function LibraryPage() {
   const [isScanning, setIsScanning] = useState(false);
   const [currentFolder, setCurrentFolder] = useState<string>("/");
 
+  const filteredAndSortedItems = getFilteredAndSortedItems();
+
+
   // Initialize library on mount
   useEffect(() => {
     if (!isInitialized) {
+      console.log("Initializing library...");
       initializeLibrary();
     }
   }, [isInitialized, initializeLibrary]);
@@ -86,49 +91,178 @@ export default function LibraryPage() {
   // Load library data when initialized
   useEffect(() => {
     if (isInitialized) {
+      console.log("Loading library data... isLoading:", isLoading);
       loadLibraryData();
     }
   }, [isInitialized, loadLibraryData]);
 
-  // Import folder using platform-appropriate method
-  const importFolder = async () => {
-    console.log("=== IMPORT FOLDER BUTTON CLICKED ===");
-    setIsScanning(true);
-    try {
-      // Debug logging for platform detection
-      console.log("Platform detection results:");
-      console.log("isTauri():", isTauri());
-      console.log(
-        "isFileSystemAccessApiAvailable():",
-        isFileSystemAccessApiAvailable()
-      );
-      console.log("Platform utilities check complete");
+  // Debug current state (without circular dependencies)
+  useEffect(() => {
+    console.log("=== LIBRARY STATE DEBUG ===");
+    console.log("isInitialized:", isInitialized);
+    console.log("isLoading:", isLoading);
+    console.log("isScanning:", isScanning);
+    console.log("searchQuery:", '"' + searchQuery + '"');
+    console.log("libraryData exists:", !!libraryData);
+    console.log("libraryData.items:", libraryData?.items?.length || 0);
+    console.log("libraryData.folders:", libraryData?.folders?.length || 0);
+    console.log("libraryRootFolder:", '"' + libraryRootFolder + '"');
+    console.log("from getFilteredAndSortedItems():", filteredAndSortedItems.length || 0);
+    console.log("=== END DEBUG ===");
+  }, [isInitialized, isLoading, isScanning, libraryData, searchQuery, libraryRootFolder, filteredAndSortedItems]);
 
-      if (isTauri()) {
-        console.log("Detected desktop environment, using importFolderDesktop");
-        // Desktop: Use Tauri's dialog API
-        await importFolderDesktop();
-      } else if (isFileSystemAccessApiAvailable()) {
-        console.log(
-          "Detected web environment with File System Access API, using importFolderWeb"
-        );
-        // Web: Use File System Access API
-        await importFolderWeb();
+  // Auto-scan folders when library data changes (debounced)
+  useEffect(() => {
+    console.log("Auto-scan effect triggered:", {
+      isInitialized,
+      hasFolders: !!(libraryData?.folders?.length > 0),
+      isScanning,
+      folderCount: libraryData?.folders?.length || 0
+    });
+
+    if (isInitialized && libraryData?.folders?.length > 0 && !isScanning) {
+      // More intelligent scanning detection
+      const scanThreshold = 8000; // 8 seconds
+
+      const hasScannedRecently = libraryData.folders.some(f => f.lastScanned ?
+        (Date.now() - new Date(f.lastScanned).getTime()) < scanThreshold : false) ||
+        libraryData.items.length === 0 && libraryData.folders.length > 0;
+
+      if (!hasScannedRecently) {
+        console.log("Library should be auto-scanned...");
+
+        // Add a small delay to indicate scanning is needed
+        const timer = setTimeout(() => {
+          console.log("Auto-scheduling folder scan...");
+          scanExistingFolders();
+        }, 500);
+
+        return () => clearTimeout(timer);
       } else {
-        console.log("No supported platform detected, showing error message");
-        console.log("About to call alert with error message");
-        alert(getPlatformErrorMessage("folder import"));
-        console.log("Alert completed");
+        console.log("Skipping auto-scan (folders recently scanned)", {
+          foldersWithScan: libraryData.folders.filter(f => f.lastScanned).
+            map(f => ({name: f.name, lastScanned: f.lastScanned}))
+        });
+      }
+    } else {
+      console.log("Conditions not met for auto-scan:", {
+        isInitialized,
+        hasFolders: !!(libraryData?.folders?.length > 0),
+        isScanning
+      });
+    }
+  }, [libraryData, isInitialized, isScanning]);
+
+  // scan all existing folders and generate metadata
+  const scanExistingFolders = async () => {
+    if (!libraryData?.folders || libraryData.folders.length === 0) {
+      console.log("No folders to scan");
+      return;
+    }
+
+    setIsScanning(true);
+    console.log("=== SCANNING EXISTING FOLDERS ===");
+
+    try {
+      // Track updates to see changes
+      let foldersUpdated = 0;
+
+      // Pre-filter items by root folder to avoid processing irrelevant items
+      const relevantItems = libraryData.items.filter((item) => {
+        if (!libraryRootFolder) return true;
+        const normalizedRoot = libraryRootFolder.startsWith('/') ? libraryRootFolder : '/' + libraryRootFolder;
+        const itemPath = item.id;
+        return itemPath.startsWith(normalizedRoot) ||
+               (itemPath.includes(normalizedRoot.replace(/^\//, '')) && itemPath.startsWith('/'));
+      });
+
+      console.log(`Processing ${relevantItems.length} relevant items for ${libraryData.folders.length} folders`);
+
+      for (const folder of libraryData.folders) {
+        try {
+          console.log(`Checking folder: ${folder.name} at path: ${folder.path}`);
+
+          // Find all items that belong to this folder
+          // The item.id contains the full path, so we can extract the folder portion
+          const folderItems = relevantItems.filter((item) => {
+            // Extract the folder path from item id (remove filename portion)
+            const itemPath = item.id;
+
+            // Normalize paths for comparison
+            const itemFolderPath = itemPath.substring(0, itemPath.lastIndexOf('/'));
+            const normalizedFolderPath = folder.path.replace(/^\//, '');
+
+            // Check if item is in this folder
+            return itemFolderPath === normalizedFolderPath ||
+                   itemFolderPath === folder.path ||
+                   itemPath.startsWith(folder.path);
+          });
+
+          // Update folder only if item count changed
+          const newItemCount = folderItems.length;
+
+          if (folder.itemCount !== newItemCount) {
+            console.log(`Folder '${folder.name}': item count changed from ${folder.itemCount} to ${newItemCount}`);
+
+            // Update folder with correct metadata
+            const updatedFolder: LibraryFolder = {
+              ...folder,
+              itemCount: newItemCount,
+              lastScanned: new Date().toISOString(),
+            };
+
+            await libraryService.addFolder(updatedFolder);
+            foldersUpdated++;
+          } else {
+            console.log(`Folder '${folder.name}': item count unchanged (${newItemCount} items)`);
+            // Re-scan without updating itemCount just to show it processed
+            if (folder.lastScanned) {
+              const date = new Date(folder.lastScanned);
+              const isOld = (Date.now() - date.getTime()) > 60000; // 1 minute old
+              if (isOld) {
+                const updatedFolder: LibraryFolder = {
+                  ...folder,
+                  lastScanned: new Date().toISOString(),
+                };
+                await libraryService.addFolder(updatedFolder);
+              }
+            }
+          }
+        } catch (error) {
+          console.error(`Failed to scan folder ${folder.name}:`, error);
+        }
+      }
+
+      console.log(`=== FOLDER SCANNING COMPLETED === Updated ${foldersUpdated} folders`);
+
+      if (foldersUpdated > 0) {
+        // Reload the data to show updated folder counts
+        // Use a debounced reload to prevent too frequent updates
+        console.log("Reloading library data to show updated folder counts...");
+
+        // Prevent immediate scan on next data load
+        const currentScanTime = new Date().toISOString();
+
+        // Small delay before reload to complete the scan
+        setTimeout(() => {
+          loadLibraryData();
+        }, 100);
+
+        toast.success(`Folder scan completed`, {
+          description: `Updated ${foldersUpdated} folders with latest metadata.`
+        });
+      } else {
+        console.log("No folder changes detected, skipping reload");
+        toast.info("Folder scan completed", {
+          description: "All folder metadata is up to date."
+        });
       }
     } catch (error) {
-      console.error("=== ERROR in importFolder ===", error);
-      console.error("Error name:", (error as any)?.name);
-      console.error("Error message:", (error as any)?.message);
-      if (error instanceof Error && error.name !== "AbortError") {
-        alert(`Failed to import folder: ${error.message}`);
-      }
+      console.error("=== ERROR in scanExistingFolders ===", error);
+      toast.error("Folder scan failed", {
+        description: "Failed to scan folders. Please try again."
+      });
     } finally {
-      console.log("=== importFolder completed ===");
       setIsScanning(false);
     }
   };
@@ -226,44 +360,6 @@ export default function LibraryPage() {
     }
   };
 
-  // Web folder import using File System Access API
-  const importFolderWeb = async () => {
-    try {
-      const directoryHandle = await (window as any).showDirectoryPicker();
-
-      // Scan the folder
-      const { items, folders } =
-        await libraryService.scanFolder(directoryHandle);
-
-      // Add folder to library
-      // Use config root folder if set, otherwise use default behavior
-      const folderPath = libraryRootFolder
-        ? `${libraryRootFolder}/${directoryHandle.name}`
-        : `/${directoryHandle.name}`;
-
-      const folder: LibraryFolder = {
-        id: directoryHandle.name,
-        name: directoryHandle.name,
-        path: folderPath,
-        itemCount: items.length,
-        lastScanned: new Date().toISOString(),
-      };
-
-      await useLibraryStore.getState().addFolder(folder);
-
-      // Add all items
-      for (const item of items) {
-        await useLibraryStore.getState().addItem(item);
-      }
-
-      // Refresh library data
-      await loadLibraryData();
-    } catch (error) {
-      console.error("Web folder import failed:", error);
-      throw error;
-    }
-  };
-
   // Handle item selection
   const handleItemSelect = (itemId: string, selected: boolean) => {
     const newSelected = new Set(selectedItems);
@@ -291,9 +387,10 @@ export default function LibraryPage() {
     return `${mins}:${secs.toString().padStart(2, "0")}`;
   };
 
-  const filteredAndSortedItems = getFilteredAndSortedItems();
+  // Calculate if items are filtered out vs having no items
+  const totalItems = libraryData?.items?.length || 0;
 
-  // Apply root folder filtering to items
+  // Apply root folder filtering to items (only after search filtering)
   const rootFilteredItems = filteredAndSortedItems.filter((item) => {
     if (!libraryRootFolder) return true; // No filter if root folder not set
 
@@ -315,6 +412,50 @@ export default function LibraryPage() {
 
   // Use filtered folders instead of original folders
   const folders = rootFilteredFolders;
+
+  // Now effects can reference variables since they're declared above
+
+  // Auto-scan folders when library data changes (debounced)
+  useEffect(() => {
+    console.log("Auto-scan effect triggered:", {
+      isInitialized,
+      hasFolders: !!(libraryData?.folders?.length > 0),
+      isScanning,
+      folderCount: libraryData?.folders?.length || 0
+    });
+
+    if (isInitialized && libraryData?.folders?.length > 0 && !isScanning) {
+      // More intelligent scanning detection
+      const scanThreshold = 8000; // 8 seconds
+
+      const hasScannedRecently = libraryData.folders.some(f => f.lastScanned ?
+        (Date.now() - new Date(f.lastScanned).getTime()) < scanThreshold : false) ||
+        libraryData.items.length === 0 && libraryData.folders.length > 0;
+
+      if (!hasScannedRecently) {
+        console.log("Library should be auto-scanned...");
+
+        // Add a small delay to indicate scanning is needed
+        const timer = setTimeout(() => {
+          console.log("Auto-scheduling folder scan...");
+          scanExistingFolders();
+        }, 500);
+
+        return () => clearTimeout(timer);
+      } else {
+        console.log("Skipping auto-scan (folders recently scanned)", {
+          foldersWithScan: libraryData.folders.filter(f => f.lastScanned).
+            map(f => ({name: f.name, lastScanned: f.lastScanned}))
+        });
+      }
+    } else {
+      console.log("Conditions not met for auto-scan:", {
+        isInitialized,
+        hasFolders: !!(libraryData?.folders?.length > 0),
+        isScanning
+      });
+    }
+  }, [libraryData, isInitialized, isScanning]);
 
   // Cleanup thumbnails on unmount
   useEffect(() => {
@@ -344,17 +485,13 @@ export default function LibraryPage() {
           <Button
             variant="outline"
             size="sm"
-            onClick={loadLibraryData}
+            onClick={scanExistingFolders}
             disabled={isLoading || isScanning}
           >
             <RefreshCw
               className={`size-4! ${isLoading ? "animate-spin" : ""}`}
             />
             Refresh
-          </Button>
-          <Button size="sm" onClick={importFolder} disabled={isScanning}>
-            <Upload className="size-4!" />
-            Import Folder
           </Button>
         </div>
       </div>
@@ -515,13 +652,16 @@ export default function LibraryPage() {
 
         {/* Items Section */}
         {isLoading ? (
-          <div className="grid grid-cols-1 xs:grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
-            {Array.from({ length: 10 }, (_, index) => (
-              <LibraryItemSkeleton key={index} viewMode={viewMode} />
-            ))}
+          <div className="flex flex-col items-center justify-center py-8">
+            <RefreshCw className="animate-spin h-8 w-8 text-muted-foreground mb-4" />
+            <p className="text-muted-foreground">Loading library...</p>
           </div>
         ) : rootFilteredItems.length === 0 ? (
-          <EmptyLibrary onImport={importFolder} />
+          <EmptyLibrary
+            onScan={scanExistingFolders}
+            isScanning={isLoading || isScanning}
+            hasRootFolder={!!libraryRootFolder}
+          />
         ) : viewMode === "grid" ? (
           <div className="grid grid-cols-1 xs:grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
             {rootFilteredItems.map((item) => (
@@ -796,7 +936,11 @@ function LibraryItemSkeleton({ viewMode }: { viewMode: "grid" | "list" }) {
   );
 }
 
-function EmptyLibrary({ onImport }: { onImport: () => Promise<void> }) {
+function EmptyLibrary({ onScan, isScanning, hasRootFolder }: {
+  onScan: () => Promise<void>,
+  isScanning: boolean,
+  hasRootFolder: boolean
+}) {
   return (
     <div className="flex flex-col items-center justify-center py-16 text-center">
       <div className="w-16 h-16 rounded-full bg-muted/30 flex items-center justify-center mb-4">
@@ -804,13 +948,26 @@ function EmptyLibrary({ onImport }: { onImport: () => Promise<void> }) {
       </div>
       <h3 className="text-lg font-medium mb-2">No library content</h3>
       <p className="text-muted-foreground mb-6 max-w-md">
-        Import a folder to browse your video materials, images, and audio files.
-        Your content stays local and private.
+        {hasRootFolder
+          ? "Your library is empty. New content added to your configured root folder will appear here."
+          : "Add a root folder in Settings to browse your video materials, images, and audio files."
+        }{' '}
+        Click Refresh to update folder metadata after configuring your library root.
       </p>
-      <Button size="lg" className="gap-2" onClick={onImport}>
-        <Upload className="h-4 w-4" />
-        Import Folder
+      <Button size="lg" className="gap-2" onClick={onScan} disabled={isScanning}>
+        <RefreshCw className="h-4 w-4" />
+        {hasRootFolder ? "Refresh Library" : "Scan Library"}
       </Button>
+      {!hasRootFolder && (
+        <div className="mt-4 text-center">
+          <Link href="/config">
+            <Button variant="outline" size="sm">
+              <Settings className="h-4 w-4" />
+              Configure Library
+            </Button>
+          </Link>
+        </div>
+      )}
     </div>
   );
 }
