@@ -142,7 +142,14 @@ export const useLibraryStore = create<LibraryStore>((set, get) => ({
     const { libraryData, searchQuery, sortOption } = get();
     if (!libraryData) return [];
 
-    const filtered = libraryData.items.filter((item) =>
+    let items = libraryData.items;
+
+    // Apply root folder filtering from config
+    // Note: We'll use the config from the component since we can't import from stores here
+    // The filtering will be applied in the component layer
+
+    // Apply search filter
+    const filtered = items.filter((item) =>
       item.name.toLowerCase().includes(searchQuery.toLowerCase())
     );
 

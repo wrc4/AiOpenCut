@@ -15,6 +15,7 @@ import {
   Upload,
   Grid,
   List,
+  Settings,
 } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
@@ -291,7 +292,29 @@ export default function LibraryPage() {
   };
 
   const filteredAndSortedItems = getFilteredAndSortedItems();
-  const folders = libraryData?.folders || [];
+
+  // Apply root folder filtering to items
+  const rootFilteredItems = filteredAndSortedItems.filter((item) => {
+    if (!libraryRootFolder) return true; // No filter if root folder not set
+
+    // Item ID contains the full path, so check if it starts with root folder
+    const itemPath = item.id;
+    const normalizedRoot = libraryRootFolder.startsWith('/') ? libraryRootFolder : '/' + libraryRootFolder;
+    return itemPath.startsWith(normalizedRoot) ||
+           (itemPath.includes(normalizedRoot.replace(/^\//, '')) && itemPath.startsWith('/'));
+  });
+
+  // Apply root folder filtering to folders
+  const rootFilteredFolders = (libraryData?.folders || []).filter((folder) => {
+    if (!libraryRootFolder) return true; // No filter if root folder not set
+
+    const normalizedRoot = libraryRootFolder.startsWith('/') ? libraryRootFolder : '/' + libraryRootFolder;
+    return folder.path.startsWith(normalizedRoot) ||
+           folder.path.includes(normalizedRoot.replace(/^\//, ''));
+  });
+
+  // Use filtered folders instead of original folders
+  const folders = rootFilteredFolders;
 
   // Cleanup thumbnails on unmount
   useEffect(() => {
@@ -343,10 +366,17 @@ export default function LibraryPage() {
               Video Library
             </h1>
             <p className="text-muted-foreground">
-              {filteredAndSortedItems.length} items • {folders.length} folders
+              {rootFilteredItems.length} items • {rootFilteredFolders.length} folders
               {selectedItems.size > 0 && (
                 <span className="ml-2 text-primary">
                   • {selectedItems.size} selected
+                </span>
+              )}
+              {libraryRootFolder && (
+                <span className="ml-2 flex items-center gap-1 text-blue-600 dark:text-blue-400">
+                  • <span className="text-xs">🗂️</span><span className="truncate max-w-xs">
+                    Root: {libraryRootFolder}
+                  </span>
                 </span>
               )}
             </p>
@@ -389,6 +419,11 @@ export default function LibraryPage() {
                 <List className="size-4!" />
               </Button>
             </div>
+            <Link href="/config">
+              <Button variant="outline" size="icon" className="h-8 w-8" title="Library Settings">
+                <Settings className="size-4!" />
+              </Button>
+            </Link>
           </div>
         </div>
 
@@ -460,12 +495,12 @@ export default function LibraryPage() {
         </div>
 
         {/* Folders Section */}
-        {folders.length > 0 && (
+        {rootFilteredFolders.length > 0 && (
           <>
             <div className="mb-4">
               <h2 className="text-lg font-semibold mb-3">Folders</h2>
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
-                {folders.map((folder) => (
+                {rootFilteredFolders.map((folder) => (
                   <FolderCard
                     key={folder.id}
                     folder={folder}
@@ -485,11 +520,11 @@ export default function LibraryPage() {
               <LibraryItemSkeleton key={index} viewMode={viewMode} />
             ))}
           </div>
-        ) : filteredAndSortedItems.length === 0 ? (
+        ) : rootFilteredItems.length === 0 ? (
           <EmptyLibrary onImport={importFolder} />
         ) : viewMode === "grid" ? (
           <div className="grid grid-cols-1 xs:grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
-            {filteredAndSortedItems.map((item) => (
+            {rootFilteredItems.map((item) => (
               <LibraryItemCard
                 key={item.id}
                 item={item}
@@ -503,7 +538,7 @@ export default function LibraryPage() {
           </div>
         ) : (
           <div className="space-y-2">
-            {filteredAndSortedItems.map((item) => (
+            {rootFilteredItems.map((item) => (
               <LibraryItemList
                 key={item.id}
                 item={item}
