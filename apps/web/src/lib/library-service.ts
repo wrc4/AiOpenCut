@@ -1,5 +1,6 @@
 import { IndexedDBAdapter } from "./storage/indexeddb-adapter";
 import { OPFSAdapter } from "./storage/opfs-adapter";
+import { useConfigStore } from "@/stores/config-store";
 
 export interface LibraryItem {
   id: string;
@@ -214,14 +215,25 @@ class LibraryService {
       const data = await this.getLibraryData();
       const supportedFormats = data.settings.supportedFormats;
 
+      // Get config root folder from config store
+      const config = useConfigStore.getState();
+      const libraryRootFolder = config.libraryRootFolder;
+
       for await (const entry of folderHandle.entries()) {
         const [name, handle] = entry;
 
         if (handle.kind === "directory") {
+          // Use config root folder if set, otherwise use folder name as base
+          const basePath = libraryRootFolder || `/${folderHandle.name}`;
+          const folderPath =
+            basePath === `/${folderHandle.name}`
+              ? `${basePath}/${name}`
+              : `${libraryRootFolder}/${folderHandle.name}/${name}`;
+
           folders.push({
             id: `${folderHandle.name}/${name}`,
             name,
-            path: `${folderHandle.name}/${name}`,
+            path: folderPath,
             itemCount: 0,
             lastScanned: new Date().toISOString(),
           });
@@ -230,10 +242,13 @@ class LibraryService {
           if (ext && supportedFormats.includes(ext)) {
             try {
               const file = await handle.getFile();
-              const item = await this.processFile(
-                file,
-                `${folderHandle.name}/${name}`
-              );
+              const basePath = libraryRootFolder || `/${folderHandle.name}`;
+              const filePath =
+                basePath === `/${folderHandle.name}`
+                  ? `${basePath}/${name}`
+                  : `${libraryRootFolder}/${folderHandle.name}/${name}`;
+
+              const item = await this.processFile(file, filePath);
               items.push(item);
             } catch (error) {
               console.error(`Failed to process file ${name}:`, error);

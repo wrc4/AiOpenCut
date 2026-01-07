@@ -72,11 +72,16 @@ export function OptimizedPreviewPanel({
     setDimensions({ width, height });
 
     // Create renderer with optimizations
-    rendererRef.current = createOptimizedPreviewRenderer(canvas, width, height, {
-      useDoubleBuffering: true,
-      useWebWorker: false, // Disabled for now due to complexity
-      frameRate: 60,
-    });
+    rendererRef.current = createOptimizedPreviewRenderer(
+      canvas,
+      width,
+      height,
+      {
+        useDoubleBuffering: true,
+        useWebWorker: false, // Disabled for now due to complexity
+        frameRate: 60,
+      }
+    );
 
     // Create performance monitor
     performanceMonitorRef.current = new PreviewPerformanceMonitor();
@@ -137,13 +142,18 @@ export function OptimizedPreviewPanel({
 
     try {
       // Build render frame from current state
-      const frame = buildRenderFrame(currentTime, tracks, activeElements, canvasSettings);
+      const frame = buildRenderFrame(
+        currentTime,
+        tracks,
+        activeElements,
+        canvasSettings
+      );
 
       // Render with performance monitoring
       rendererRef.current.renderFrame(frame, {
         clearBackground: true,
         smoothRendering: true,
-        quality: 'high',
+        quality: "high",
       });
 
       // Update performance metrics
@@ -162,12 +172,19 @@ export function OptimizedPreviewPanel({
         }
       }
     } catch (error) {
-      console.error('Error rendering frame:', error);
+      console.error("Error rendering frame:", error);
       if (performanceMonitorRef.current) {
         performanceMonitorRef.current.recordDroppedFrame();
       }
     }
-  }, [currentTime, tracks, activeElements, canvasSettings, isReady, showPerformance]);
+  }, [
+    currentTime,
+    tracks,
+    activeElements,
+    canvasSettings,
+    isReady,
+    showPerformance,
+  ]);
 
   // Handle playback
   useEffect(() => {
@@ -189,7 +206,15 @@ export function OptimizedPreviewPanel({
         rendererRef.current.stopRenderLoop();
       }
     };
-  }, [isPlaying, currentTime, tracks, activeElements, canvasSettings, isReady, renderFrame]);
+  }, [
+    isPlaying,
+    currentTime,
+    tracks,
+    activeElements,
+    canvasSettings,
+    isReady,
+    renderFrame,
+  ]);
 
   // Render single frame when not playing
   useEffect(() => {
@@ -199,16 +224,18 @@ export function OptimizedPreviewPanel({
   }, [renderFrame, isPlaying]);
 
   return (
-    <div className={cn("relative bg-black rounded-lg overflow-hidden", className)}>
-      <div ref={containerRef} className="relative w-full h-full flex items-center justify-center">
+    <div
+      className={cn("relative bg-black rounded-lg overflow-hidden", className)}
+    >
+      <div
+        ref={containerRef}
+        className="relative w-full h-full flex items-center justify-center"
+      >
         <canvas
           ref={canvasRef}
           width={dimensions.width}
           height={dimensions.height}
-          className={cn(
-            "max-w-full max-h-full",
-            !isReady && "opacity-0"
-          )}
+          className={cn("max-w-full max-h-full", !isReady && "opacity-0")}
           style={{
             width: dimensions.width,
             height: dimensions.height,
@@ -225,14 +252,14 @@ export function OptimizedPreviewPanel({
       {showControls && (
         <div className="absolute bottom-4 left-4 right-4 flex items-center justify-between">
           <div className="text-white/80 text-sm">
-            {currentTime.toFixed(2)}s / {isPlaying ? 'Playing' : 'Paused'}
+            {currentTime.toFixed(2)}s / {isPlaying ? "Playing" : "Paused"}
           </div>
 
           {showPerformance && (
             <div className="text-white/60 text-xs font-mono">
-              FPS: {performanceMetrics.frameRate.toFixed(1)} |
-              Render: {performanceMetrics.renderTime.toFixed(1)}ms |
-              Dropped: {performanceMetrics.droppedFrames}
+              FPS: {performanceMetrics.frameRate.toFixed(1)} | Render:{" "}
+              {performanceMetrics.renderTime.toFixed(1)}ms | Dropped:{" "}
+              {performanceMetrics.droppedFrames}
             </div>
           )}
         </div>
@@ -267,9 +294,9 @@ function buildRenderFrame(
       };
 
       // Add type-specific properties
-      if (element.type === 'video' || element.type === 'image') {
+      if (element.type === "video" || element.type === "image") {
         renderElement.source = element.source; // HTMLVideoElement or HTMLImageElement
-      } else if (element.type === 'text') {
+      } else if (element.type === "text") {
         renderElement.text = element.text;
         renderElement.font = element.font;
         renderElement.color = element.color;
@@ -283,7 +310,7 @@ function buildRenderFrame(
     id: `frame-${currentTime}`,
     timestamp: currentTime,
     elements,
-    background: '#000000', // Black background
+    background: "#000000", // Black background
   };
 }
 
@@ -295,18 +322,18 @@ export function usePreviewOptimization() {
 
   useEffect(() => {
     // Check if browser supports required APIs
-    const supportsOffscreenCanvas = typeof OffscreenCanvas !== 'undefined';
-    const supportsWebWorker = typeof Worker !== 'undefined';
-    const supportsWebCodecs = 'VideoDecoder' in window;
+    const supportsOffscreenCanvas = typeof OffscreenCanvas !== "undefined";
+    const supportsWebWorker = typeof Worker !== "undefined";
+    const supportsWebCodecs = "VideoDecoder" in window;
 
     setIsOptimized(supportsOffscreenCanvas && supportsWebWorker);
   }, []);
 
   return {
     isOptimized,
-    supportsOffscreenCanvas: typeof OffscreenCanvas !== 'undefined',
-    supportsWebWorker: typeof Worker !== 'undefined',
-    supportsWebCodecs: 'VideoDecoder' in window,
+    supportsOffscreenCanvas: typeof OffscreenCanvas !== "undefined",
+    supportsWebWorker: typeof Worker !== "undefined",
+    supportsWebCodecs: "VideoDecoder" in window,
   };
 }
 
@@ -323,9 +350,9 @@ export function usePreviewPerformance() {
 
   useEffect(() => {
     const updateMetrics = () => {
-      if ('memory' in performance) {
+      if ("memory" in performance) {
         const memoryInfo = (performance as any).memory;
-        setMetrics(prev => ({
+        setMetrics((prev) => ({
           ...prev,
           memoryUsage: memoryInfo.usedJSHeapSize / 1024 / 1024, // MB
         }));
@@ -363,7 +390,7 @@ export class CanvasPool {
   private maxSize = 10;
 
   acquire(width: number, height: number): HTMLCanvasElement {
-    const canvas = this.pool.pop() || document.createElement('canvas');
+    const canvas = this.pool.pop() || document.createElement("canvas");
     canvas.width = width;
     canvas.height = height;
     return canvas;
@@ -372,7 +399,7 @@ export class CanvasPool {
   release(canvas: HTMLCanvasElement): void {
     if (this.pool.length < this.maxSize) {
       // Clear canvas references
-      const ctx = canvas.getContext('2d');
+      const ctx = canvas.getContext("2d");
       if (ctx) {
         ctx.clearRect(0, 0, canvas.width, canvas.height);
       }
@@ -381,8 +408,8 @@ export class CanvasPool {
   }
 
   clear(): void {
-    this.pool.forEach(canvas => {
-      const ctx = canvas.getContext('2d');
+    this.pool.forEach((canvas) => {
+      const ctx = canvas.getContext("2d");
       if (ctx) {
         ctx.clearRect(0, 0, canvas.width, canvas.height);
       }

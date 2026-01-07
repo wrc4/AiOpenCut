@@ -38,12 +38,17 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { useLibraryStore } from "@/stores/library-store";
+import { useConfigStore } from "@/stores/config-store";
 import {
   libraryService,
   LibraryItem,
   LibraryFolder,
 } from "@/lib/library-service";
-import { isTauri, isFileSystemAccessApiAvailable, getPlatformErrorMessage } from "@/lib/platform-utils";
+import {
+  isTauri,
+  isFileSystemAccessApiAvailable,
+  getPlatformErrorMessage,
+} from "@/lib/platform-utils";
 
 export default function LibraryPage() {
   const {
@@ -66,6 +71,7 @@ export default function LibraryPage() {
     getFilteredAndSortedItems,
   } = useLibraryStore();
 
+  const { libraryRootFolder } = useConfigStore();
   const [isScanning, setIsScanning] = useState(false);
   const [currentFolder, setCurrentFolder] = useState<string>("/");
 
@@ -91,7 +97,10 @@ export default function LibraryPage() {
       // Debug logging for platform detection
       console.log("Platform detection results:");
       console.log("isTauri():", isTauri());
-      console.log("isFileSystemAccessApiAvailable():", isFileSystemAccessApiAvailable());
+      console.log(
+        "isFileSystemAccessApiAvailable():",
+        isFileSystemAccessApiAvailable()
+      );
       console.log("Platform utilities check complete");
 
       if (isTauri()) {
@@ -99,7 +108,9 @@ export default function LibraryPage() {
         // Desktop: Use Tauri's dialog API
         await importFolderDesktop();
       } else if (isFileSystemAccessApiAvailable()) {
-        console.log("Detected web environment with File System Access API, using importFolderWeb");
+        console.log(
+          "Detected web environment with File System Access API, using importFolderWeb"
+        );
         // Web: Use File System Access API
         await importFolderWeb();
       } else {
@@ -128,7 +139,8 @@ export default function LibraryPage() {
       console.log("About to show desktop alert message");
 
       // For now, show a message that desktop import is coming soon
-      const message = "Desktop folder import is coming soon! For now, please use the web version in Chrome/Edge to import folders.";
+      const message =
+        "Desktop folder import is coming soon! For now, please use the web version in Chrome/Edge to import folders.";
       console.log("Message content:", message);
 
       // Try different alert methods in case one is blocked
@@ -152,7 +164,9 @@ export default function LibraryPage() {
 
       // Desktop implementation is disabled for web-only focus
       // The architecture is ready for future Electron integration
-      alert("Desktop import is not available. Please use the web version with Chrome/Edge.");
+      alert(
+        "Desktop import is not available. Please use the web version with Chrome/Edge."
+      );
       return;
 
       /*
@@ -221,10 +235,15 @@ export default function LibraryPage() {
         await libraryService.scanFolder(directoryHandle);
 
       // Add folder to library
+      // Use config root folder if set, otherwise use default behavior
+      const folderPath = libraryRootFolder
+        ? `${libraryRootFolder}/${directoryHandle.name}`
+        : `/${directoryHandle.name}`;
+
       const folder: LibraryFolder = {
         id: directoryHandle.name,
         name: directoryHandle.name,
-        path: `/${directoryHandle.name}`,
+        path: folderPath,
         itemCount: items.length,
         lastScanned: new Date().toISOString(),
       };

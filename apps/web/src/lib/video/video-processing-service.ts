@@ -4,7 +4,7 @@
  * Provides optimized video processing with fallback mechanisms
  */
 
-import VideoProcessorWorker from './video-processor.worker?worker';
+import VideoProcessorWorker from "./video-processor.worker?worker";
 
 export interface VideoProcessingOptions {
   extractFrame?: {
@@ -48,23 +48,26 @@ export interface ProcessingMetrics {
 class VideoProcessingService {
   private worker?: Worker;
   private messageId = 0;
-  private pendingMessages = new Map<number, {
-    resolve: (value: any) => void;
-    reject: (error: any) => void;
-    timeout: NodeJS.Timeout;
-  }>();
+  private pendingMessages = new Map<
+    number,
+    {
+      resolve: (value: any) => void;
+      reject: (error: any) => void;
+      timeout: NodeJS.Timeout;
+    }
+  >();
 
   private metrics: ProcessingMetrics = {
     totalProcessed: 0,
     workerProcessed: 0,
     mainThreadProcessed: 0,
     averageProcessingTime: 0,
-    failedOperations: 0
+    failedOperations: 0,
   };
 
   private processingTimes: number[] = [];
-  private maxProcessingTime = 30000; // 30 seconds
-  private workerTimeout = 10000; // 10 seconds
+  private maxProcessingTime = 30_000; // 30 seconds
+  private workerTimeout = 10_000; // 10 seconds
 
   constructor() {
     this.initializeWorker();
@@ -75,9 +78,9 @@ class VideoProcessingService {
       this.worker = new VideoProcessorWorker();
       this.worker.onmessage = this.handleWorkerMessage.bind(this);
       this.worker.onerror = this.handleWorkerError.bind(this);
-      console.log('Video processing worker initialized successfully');
+      console.log("Video processing worker initialized successfully");
     } catch (error) {
-      console.warn('Failed to initialize video processing worker:', error);
+      console.warn("Failed to initialize video processing worker:", error);
       this.worker = undefined;
     }
   }
@@ -88,7 +91,7 @@ class VideoProcessingService {
 
     const pending = this.pendingMessages.get(id);
     if (!pending) {
-      console.warn('Received response for unknown message ID:', id);
+      console.warn("Received response for unknown message ID:", id);
       return;
     }
 
@@ -98,16 +101,16 @@ class VideoProcessingService {
     if (success) {
       pending.resolve(data);
     } else {
-      pending.reject(new Error(error || 'Worker processing failed'));
+      pending.reject(new Error(error || "Worker processing failed"));
     }
   }
 
   private handleWorkerError(error: ErrorEvent): void {
-    console.error('Worker error:', error);
+    console.error("Worker error:", error);
 
     // Reject all pending messages
     for (const [id, pending] of this.pendingMessages) {
-      pending.reject(new Error('Worker error: ' + error.message));
+      pending.reject(new Error("Worker error: " + error.message));
       clearTimeout(pending.timeout);
     }
     this.pendingMessages.clear();
@@ -133,7 +136,10 @@ class VideoProcessingService {
           this.updateMetrics(true, performance.now() - startTime);
           return result;
         } catch (workerError) {
-          console.warn('Worker processing failed, falling back to main thread:', workerError);
+          console.warn(
+            "Worker processing failed, falling back to main thread:",
+            workerError
+          );
         }
       }
 
@@ -141,7 +147,6 @@ class VideoProcessingService {
       const result = await this.processOnMainThread(videoData, options);
       this.updateMetrics(false, performance.now() - startTime);
       return result;
-
     } catch (error) {
       this.metrics.failedOperations++;
       throw error;
@@ -160,30 +165,30 @@ class VideoProcessingService {
     // Process each operation type
     if (options.extractFrame) {
       const frameData = await this.sendWorkerMessage({
-        type: 'extractFrame',
+        type: "extractFrame",
         data: {
           videoData,
-          ...options.extractFrame
-        }
+          ...options.extractFrame,
+        },
       });
       result.frame = frameData;
     }
 
     if (options.generateThumbnail) {
       const thumbnailData = await this.sendWorkerMessage({
-        type: 'generateThumbnail',
+        type: "generateThumbnail",
         data: {
           videoData,
-          ...options.generateThumbnail
-        }
+          ...options.generateThumbnail,
+        },
       });
       result.thumbnail = thumbnailData;
     }
 
     if (options.getMetadata) {
       const metadata = await this.sendWorkerMessage({
-        type: 'getMetadata',
-        data: { videoData }
+        type: "getMetadata",
+        data: { videoData },
       });
       result.metadata = metadata;
     }
@@ -205,11 +210,17 @@ class VideoProcessingService {
 
     try {
       if (options.extractFrame) {
-        result.frame = await this.extractFrameOnMainThread(video, options.extractFrame);
+        result.frame = await this.extractFrameOnMainThread(
+          video,
+          options.extractFrame
+        );
       }
 
       if (options.generateThumbnail) {
-        result.thumbnail = await this.generateThumbnailOnMainThread(video, options.generateThumbnail);
+        result.thumbnail = await this.generateThumbnailOnMainThread(
+          video,
+          options.generateThumbnail
+        );
       }
 
       if (options.getMetadata) {
@@ -227,7 +238,7 @@ class VideoProcessingService {
    */
   private sendWorkerMessage(messageData: any): Promise<any> {
     if (!this.worker) {
-      throw new Error('Worker not available');
+      throw new Error("Worker not available");
     }
 
     const id = ++this.messageId;
@@ -236,7 +247,7 @@ class VideoProcessingService {
     return new Promise((resolve, reject) => {
       const timeout = setTimeout(() => {
         this.pendingMessages.delete(id);
-        reject(new Error('Worker message timeout'));
+        reject(new Error("Worker message timeout"));
       }, this.workerTimeout);
 
       this.pendingMessages.set(id, { resolve, reject, timeout });
@@ -249,7 +260,7 @@ class VideoProcessingService {
    */
   private async extractFrameOnMainThread(
     video: HTMLVideoElement,
-    options: NonNullable<VideoProcessingOptions['extractFrame']>
+    options: NonNullable<VideoProcessingOptions["extractFrame"]>
   ): Promise<string> {
     const { time, width, height, quality = 0.8 } = options;
 
@@ -258,7 +269,10 @@ class VideoProcessingService {
 
     // Wait for seek to complete
     await new Promise<void>((resolve, reject) => {
-      const timeout = setTimeout(() => reject(new Error('Frame extraction timeout')), 5000);
+      const timeout = setTimeout(
+        () => reject(new Error("Frame extraction timeout")),
+        5000
+      );
 
       video.onseeked = () => {
         clearTimeout(timeout);
@@ -267,13 +281,13 @@ class VideoProcessingService {
 
       video.onerror = () => {
         clearTimeout(timeout);
-        reject(new Error('Video error during frame extraction'));
+        reject(new Error("Video error during frame extraction"));
       };
     });
 
     // Extract frame
-    const canvas = document.createElement('canvas');
-    const ctx = canvas.getContext('2d')!;
+    const canvas = document.createElement("canvas");
+    const ctx = canvas.getContext("2d")!;
 
     const targetWidth = width || video.videoWidth;
     const targetHeight = height || video.videoHeight;
@@ -284,17 +298,22 @@ class VideoProcessingService {
     ctx.drawImage(video, 0, 0, targetWidth, targetHeight);
 
     return new Promise((resolve, reject) => {
-      canvas.toBlob((blob) => {
-        if (!blob) {
-          reject(new Error('Failed to create frame blob'));
-          return;
-        }
+      canvas.toBlob(
+        (blob) => {
+          if (!blob) {
+            reject(new Error("Failed to create frame blob"));
+            return;
+          }
 
-        const reader = new FileReader();
-        reader.onload = () => resolve(reader.result as string);
-        reader.onerror = () => reject(new Error('Failed to convert frame to data URL'));
-        reader.readAsDataURL(blob);
-      }, 'image/jpeg', quality);
+          const reader = new FileReader();
+          reader.onload = () => resolve(reader.result as string);
+          reader.onerror = () =>
+            reject(new Error("Failed to convert frame to data URL"));
+          reader.readAsDataURL(blob);
+        },
+        "image/jpeg",
+        quality
+      );
     });
   }
 
@@ -303,7 +322,7 @@ class VideoProcessingService {
    */
   private async generateThumbnailOnMainThread(
     video: HTMLVideoElement,
-    options: NonNullable<VideoProcessingOptions['generateThumbnail']>
+    options: NonNullable<VideoProcessingOptions["generateThumbnail"]>
   ): Promise<string> {
     const { time, width, height, quality = 0.7 } = options;
     const thumbnailTime = time || Math.min(1, video.duration || 1);
@@ -311,7 +330,10 @@ class VideoProcessingService {
     video.currentTime = thumbnailTime;
 
     await new Promise<void>((resolve, reject) => {
-      const timeout = setTimeout(() => reject(new Error('Thumbnail generation timeout')), 3000);
+      const timeout = setTimeout(
+        () => reject(new Error("Thumbnail generation timeout")),
+        3000
+      );
 
       video.onseeked = () => {
         clearTimeout(timeout);
@@ -320,12 +342,12 @@ class VideoProcessingService {
 
       video.onerror = () => {
         clearTimeout(timeout);
-        reject(new Error('Video error during thumbnail generation'));
+        reject(new Error("Video error during thumbnail generation"));
       };
     });
 
-    const canvas = document.createElement('canvas');
-    const ctx = canvas.getContext('2d')!;
+    const canvas = document.createElement("canvas");
+    const ctx = canvas.getContext("2d")!;
 
     canvas.width = width;
     canvas.height = height;
@@ -334,17 +356,22 @@ class VideoProcessingService {
     this.drawImageCover(ctx, video, width, height);
 
     return new Promise((resolve, reject) => {
-      canvas.toBlob((blob) => {
-        if (!blob) {
-          reject(new Error('Failed to create thumbnail blob'));
-          return;
-        }
+      canvas.toBlob(
+        (blob) => {
+          if (!blob) {
+            reject(new Error("Failed to create thumbnail blob"));
+            return;
+          }
 
-        const reader = new FileReader();
-        reader.onload = () => resolve(reader.result as string);
-        reader.onerror = () => reject(new Error('Failed to convert thumbnail to data URL'));
-        reader.readAsDataURL(blob);
-      }, 'image/jpeg', quality);
+          const reader = new FileReader();
+          reader.onload = () => resolve(reader.result as string);
+          reader.onerror = () =>
+            reject(new Error("Failed to convert thumbnail to data URL"));
+          reader.readAsDataURL(blob);
+        },
+        "image/jpeg",
+        quality
+      );
     });
   }
 
@@ -361,7 +388,7 @@ class VideoProcessingService {
       duration: video.duration || 0,
       width: video.videoWidth,
       height: video.videoHeight,
-      framerate: this.estimateFrameRate(video)
+      framerate: this.estimateFrameRate(video),
     };
   }
 
@@ -372,7 +399,7 @@ class VideoProcessingService {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
       reader.onload = () => resolve(reader.result as ArrayBuffer);
-      reader.onerror = () => reject(new Error('Failed to read file'));
+      reader.onerror = () => reject(new Error("Failed to read file"));
       reader.readAsArrayBuffer(file);
     });
   }
@@ -380,18 +407,23 @@ class VideoProcessingService {
   /**
    * Helper: Create video from ArrayBuffer
    */
-  private async createVideoFromData(data: ArrayBuffer): Promise<HTMLVideoElement> {
-    const blob = new Blob([data], { type: 'video/mp4' });
+  private async createVideoFromData(
+    data: ArrayBuffer
+  ): Promise<HTMLVideoElement> {
+    const blob = new Blob([data], { type: "video/mp4" });
     const url = URL.createObjectURL(blob);
 
-    const video = document.createElement('video');
+    const video = document.createElement("video");
     video.src = url;
     video.muted = true;
     video.playsInline = true;
-    video.preload = 'metadata';
+    video.preload = "metadata";
 
     await new Promise<void>((resolve, reject) => {
-      const timeout = setTimeout(() => reject(new Error('Video loading timeout')), 10000);
+      const timeout = setTimeout(
+        () => reject(new Error("Video loading timeout")),
+        10_000
+      );
 
       video.onloadedmetadata = () => {
         clearTimeout(timeout);
@@ -400,7 +432,7 @@ class VideoProcessingService {
 
       video.onerror = () => {
         clearTimeout(timeout);
-        reject(new Error('Failed to load video'));
+        reject(new Error("Failed to load video"));
       };
     });
 
@@ -415,7 +447,7 @@ class VideoProcessingService {
       URL.revokeObjectURL(video.src);
     }
     video.pause();
-    video.removeAttribute('src');
+    video.removeAttribute("src");
     video.load();
   }
 
@@ -478,7 +510,8 @@ class VideoProcessingService {
     }
 
     this.metrics.averageProcessingTime =
-      this.processingTimes.reduce((a, b) => a + b, 0) / this.processingTimes.length;
+      this.processingTimes.reduce((a, b) => a + b, 0) /
+      this.processingTimes.length;
   }
 
   /**
@@ -501,7 +534,7 @@ class VideoProcessingService {
   destroy(): void {
     // Reject all pending messages
     for (const [id, pending] of this.pendingMessages) {
-      pending.reject(new Error('Service destroyed'));
+      pending.reject(new Error("Service destroyed"));
       clearTimeout(pending.timeout);
     }
     this.pendingMessages.clear();

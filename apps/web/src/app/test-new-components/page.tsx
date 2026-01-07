@@ -52,34 +52,51 @@ export default function TestNewComponents() {
     try {
       // Test 1: File System Service
       console.log("Testing File System Service...");
-      const isFileSystemAvailable = fileSystemService.getProvider().isAvailable();
-      setTestResults(prev => ({ ...prev, fileSystem: isFileSystemAvailable }));
-      console.log("File System Service:", isFileSystemAvailable ? "✅ Available" : "❌ Not Available");
+      const isFileSystemAvailable = fileSystemService
+        .getProvider()
+        .isAvailable();
+      setTestResults((prev) => ({
+        ...prev,
+        fileSystem: isFileSystemAvailable,
+      }));
+      console.log(
+        "File System Service:",
+        isFileSystemAvailable ? "✅ Available" : "❌ Not Available"
+      );
 
       // Test 2: Library Service
       console.log("Testing Enhanced Library Service...");
       const libraryData = await libraryService.initializeLibrary();
       const hasSettings = !!libraryData.settings.fileSystemType;
-      setTestResults(prev => ({ ...prev, library: hasSettings }));
-      console.log("Enhanced Library Service:", hasSettings ? "✅ Enhanced Schema" : "❌ Basic Schema");
+      setTestResults((prev) => ({ ...prev, library: hasSettings }));
+      console.log(
+        "Enhanced Library Service:",
+        hasSettings ? "✅ Enhanced Schema" : "❌ Basic Schema"
+      );
 
       // Test 3: Preview Renderer
       console.log("Testing Optimized Preview Renderer...");
       const isWorkerAvailable = videoProcessingService.isWorkerAvailable();
-      setTestResults(prev => ({ ...prev, preview: true })); // Always true since we can fall back
-      console.log("Video Processing Service:", isWorkerAvailable ? "✅ Worker Available" : "✅ Fallback Ready");
+      setTestResults((prev) => ({ ...prev, preview: true })); // Always true since we can fall back
+      console.log(
+        "Video Processing Service:",
+        isWorkerAvailable ? "✅ Worker Available" : "✅ Fallback Ready"
+      );
 
       // Test 4: Video Processing
       console.log("Testing Video Processing Service...");
       const metrics = videoProcessingService.getMetrics();
       const isProcessingReady = metrics.totalProcessed >= 0; // Should be 0 initially
-      setTestResults(prev => ({ ...prev, videoProcessing: isProcessingReady }));
+      setTestResults((prev) => ({
+        ...prev,
+        videoProcessing: isProcessingReady,
+      }));
       console.log("Video Processing Service:", "✅ Ready");
 
       console.log("All tests completed!");
     } catch (error) {
       console.error("Test failed:", error);
-      setTestResults(prev => ({
+      setTestResults((prev) => ({
         ...prev,
         error: error instanceof Error ? error.message : "Unknown error",
       }));
@@ -116,11 +133,17 @@ export default function TestNewComponents() {
           try {
             const thumbnail = await libraryService.generateThumbnail(file);
             if (thumbnail) {
-              await libraryService.saveThumbnail(file.id, await fetch(thumbnail).then(r => r.blob()));
+              await libraryService.saveThumbnail(
+                file.id,
+                await fetch(thumbnail).then((r) => r.blob())
+              );
               await libraryService.addItem({ ...file, thumbnail });
             }
           } catch (thumbError) {
-            console.warn(`Failed to generate thumbnail for ${file.name}:`, thumbError);
+            console.warn(
+              `Failed to generate thumbnail for ${file.name}:`,
+              thumbError
+            );
           }
         }
         processedCount++;
@@ -133,7 +156,9 @@ export default function TestNewComponents() {
       console.log(`Successfully imported ${result.files.length} files`);
     } catch (error) {
       console.error("Import failed:", error);
-      alert(`Import failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      alert(
+        `Import failed: ${error instanceof Error ? error.message : "Unknown error"}`
+      );
     } finally {
       setIsImporting(false);
       setImportProgress(0);
@@ -156,7 +181,8 @@ export default function TestNewComponents() {
       const currentTime = performance.now();
       const deltaTime = currentTime - lastTime;
 
-      if (deltaTime >= 16.67) { // ~60 FPS
+      if (deltaTime >= 16.67) {
+        // ~60 FPS
         frameCount++;
         setPreviewMetrics({
           frameRate: 1000 / deltaTime,
@@ -183,7 +209,9 @@ export default function TestNewComponents() {
       <div className="max-w-6xl mx-auto space-y-6">
         <div className="text-center mb-8">
           <h1 className="text-3xl font-bold mb-2">OpenCut Component Testing</h1>
-          <p className="text-muted-foreground">Test the new optimized components</p>
+          <p className="text-muted-foreground">
+            Test the new optimized components
+          </p>
         </div>
 
         {/* Test Controls */}
@@ -192,11 +220,7 @@ export default function TestNewComponents() {
             <CardTitle>Component Tests</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            <Button
-              onClick={runTests}
-              disabled={isTesting}
-              className="w-full"
-            >
+            <Button onClick={runTests} disabled={isTesting} className="w-full">
               {isTesting ? (
                 <>
                   <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
@@ -314,7 +338,8 @@ export default function TestNewComponents() {
             </CardHeader>
             <CardContent className="space-y-4">
               <p className="text-sm text-muted-foreground">
-                Test importing a folder with video files. Files will be referenced without copying.
+                Test importing a folder with video files. Files will be
+                referenced without copying.
               </p>
               <Button
                 onClick={testFileImport}
@@ -337,7 +362,11 @@ export default function TestNewComponents() {
               {isImporting && (
                 <div className="space-y-2">
                   <div className="flex items-center justify-between text-sm">
-                    <span>Processing files...{libraryItems.length > 0 && ` ${libraryItems.length} imported`}</span>
+                    <span>
+                      Processing files...
+                      {libraryItems.length > 0 &&
+                        ` ${libraryItems.length} imported`}
+                    </span>
                     <span>{Math.round(importProgress)}%</span>
                   </div>
                   <div className="w-full bg-gray-200 rounded-full h-2">
@@ -351,12 +380,19 @@ export default function TestNewComponents() {
 
               {libraryItems.length > 0 && (
                 <div className="mt-4">
-                  <h4 className="font-medium mb-2">Imported Items ({libraryItems.length}):</h4>
+                  <h4 className="font-medium mb-2">
+                    Imported Items ({libraryItems.length}):
+                  </h4>
                   <div className="space-y-1 max-h-32 overflow-y-auto">
                     {libraryItems.map((item) => (
-                      <div key={item.id} className="flex items-center justify-between text-sm p-2 bg-muted rounded">
+                      <div
+                        key={item.id}
+                        className="flex items-center justify-between text-sm p-2 bg-muted rounded"
+                      >
                         <span>{item.name}</span>
-                        <span className="text-muted-foreground">{item.type}</span>
+                        <span className="text-muted-foreground">
+                          {item.type}
+                        </span>
                       </div>
                     ))}
                   </div>
@@ -373,7 +409,8 @@ export default function TestNewComponents() {
           </CardHeader>
           <CardContent className="space-y-4">
             <p className="text-sm text-muted-foreground">
-              Test the optimized preview renderer performance. This simulates video playback to check for flickering.
+              Test the optimized preview renderer performance. This simulates
+              video playback to check for flickering.
             </p>
             <div className="flex items-center gap-4">
               <Button onClick={testPreviewPerformance}>
@@ -390,9 +427,9 @@ export default function TestNewComponents() {
                 )}
               </Button>
               <div className="text-sm font-mono">
-                FPS: {previewMetrics.frameRate.toFixed(1)} |
-                Render: {previewMetrics.renderTime.toFixed(1)}ms |
-                Dropped: {previewMetrics.droppedFrames}
+                FPS: {previewMetrics.frameRate.toFixed(1)} | Render:{" "}
+                {previewMetrics.renderTime.toFixed(1)}ms | Dropped:{" "}
+                {previewMetrics.droppedFrames}
               </div>
             </div>
             <div className="text-xs text-muted-foreground">

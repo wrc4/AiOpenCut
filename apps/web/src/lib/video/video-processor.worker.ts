@@ -6,7 +6,7 @@
 
 export interface VideoProcessorMessage {
   id: string;
-  type: 'extractFrame' | 'generateThumbnail' | 'getMetadata' | 'processVideo';
+  type: "extractFrame" | "generateThumbnail" | "getMetadata" | "processVideo";
   data: any;
 }
 
@@ -44,7 +44,7 @@ export interface ProcessVideoData {
 }
 
 export interface VideoOperation {
-  type: 'trim' | 'resize' | 'rotate' | 'flip';
+  type: "trim" | "resize" | "rotate" | "flip";
   params: any;
 }
 
@@ -58,45 +58,47 @@ class VideoProcessor {
 
   constructor() {
     this.canvas = new OffscreenCanvas(1920, 1080);
-    this.ctx = this.canvas.getContext('2d')!;
+    this.ctx = this.canvas.getContext("2d")!;
   }
 
   /**
    * Process incoming messages
    */
-  async processMessage(message: VideoProcessorMessage): Promise<VideoProcessorResponse> {
+  async processMessage(
+    message: VideoProcessorMessage
+  ): Promise<VideoProcessorResponse> {
     try {
       switch (message.type) {
-        case 'extractFrame':
+        case "extractFrame":
           return {
             id: message.id,
             type: message.type,
             success: true,
-            data: await this.extractFrame(message.data)
+            data: await this.extractFrame(message.data),
           };
 
-        case 'generateThumbnail':
+        case "generateThumbnail":
           return {
             id: message.id,
             type: message.type,
             success: true,
-            data: await this.generateThumbnail(message.data)
+            data: await this.generateThumbnail(message.data),
           };
 
-        case 'getMetadata':
+        case "getMetadata":
           return {
             id: message.id,
             type: message.type,
             success: true,
-            data: await this.getMetadata(message.data)
+            data: await this.getMetadata(message.data),
           };
 
-        case 'processVideo':
+        case "processVideo":
           return {
             id: message.id,
             type: message.type,
             success: true,
-            data: await this.processVideo(message.data)
+            data: await this.processVideo(message.data),
           };
 
         default:
@@ -107,7 +109,7 @@ class VideoProcessor {
         id: message.id,
         type: message.type,
         success: false,
-        error: error instanceof Error ? error.message : 'Unknown error'
+        error: error instanceof Error ? error.message : "Unknown error",
       };
     }
   }
@@ -126,7 +128,10 @@ class VideoProcessor {
 
       // Wait for frame to be available
       await new Promise<void>((resolve, reject) => {
-        const timeout = setTimeout(() => reject(new Error('Frame extraction timeout')), 5000);
+        const timeout = setTimeout(
+          () => reject(new Error("Frame extraction timeout")),
+          5000
+        );
 
         video.onseeked = () => {
           clearTimeout(timeout);
@@ -135,7 +140,7 @@ class VideoProcessor {
 
         video.onerror = () => {
           clearTimeout(timeout);
-          reject(new Error('Video error during frame extraction'));
+          reject(new Error("Video error during frame extraction"));
         };
       });
 
@@ -150,8 +155,8 @@ class VideoProcessor {
 
       // Convert to data URL
       const blob = await this.canvas.convertToBlob({
-        type: 'image/jpeg',
-        quality
+        type: "image/jpeg",
+        quality,
       });
 
       return await this.blobToDataURL(blob);
@@ -163,7 +168,9 @@ class VideoProcessor {
   /**
    * Generate thumbnail from video
    */
-  private async generateThumbnail(data: GenerateThumbnailData): Promise<string> {
+  private async generateThumbnail(
+    data: GenerateThumbnailData
+  ): Promise<string> {
     const { videoData, time, width, height, quality = 0.7 } = data;
 
     // For thumbnails, we want to extract a representative frame
@@ -176,7 +183,10 @@ class VideoProcessor {
       video.currentTime = Math.min(frameTime, video.duration || frameTime);
 
       await new Promise<void>((resolve, reject) => {
-        const timeout = setTimeout(() => reject(new Error('Thumbnail generation timeout')), 3000);
+        const timeout = setTimeout(
+          () => reject(new Error("Thumbnail generation timeout")),
+          3000
+        );
 
         video.onseeked = () => {
           clearTimeout(timeout);
@@ -185,7 +195,7 @@ class VideoProcessor {
 
         video.onerror = () => {
           clearTimeout(timeout);
-          reject(new Error('Video error during thumbnail generation'));
+          reject(new Error("Video error during thumbnail generation"));
         };
       });
 
@@ -196,8 +206,8 @@ class VideoProcessor {
       this.drawImageCover(video, width, height);
 
       const blob = await this.canvas.convertToBlob({
-        type: 'image/jpeg',
-        quality
+        type: "image/jpeg",
+        quality,
       });
 
       return await this.blobToDataURL(blob);
@@ -225,7 +235,10 @@ class VideoProcessor {
       // Wait for metadata to load
       if (video.duration === Infinity || video.duration === 0) {
         await new Promise<void>((resolve, reject) => {
-          const timeout = setTimeout(() => reject(new Error('Metadata loading timeout')), 5000);
+          const timeout = setTimeout(
+            () => reject(new Error("Metadata loading timeout")),
+            5000
+          );
 
           video.onloadedmetadata = () => {
             clearTimeout(timeout);
@@ -234,7 +247,7 @@ class VideoProcessor {
 
           video.onerror = () => {
             clearTimeout(timeout);
-            reject(new Error('Video error during metadata loading'));
+            reject(new Error("Video error during metadata loading"));
           };
         });
       }
@@ -243,7 +256,7 @@ class VideoProcessor {
         duration: video.duration || 0,
         width: video.videoWidth,
         height: video.videoHeight,
-        framerate: this.estimateFrameRate(video)
+        framerate: this.estimateFrameRate(video),
       };
     } finally {
       this.cleanupVideo(video);
@@ -258,26 +271,34 @@ class VideoProcessor {
 
     // For now, return original data
     // This would be implemented with WebCodecs API or FFmpeg.wasm
-    console.log('Video processing not yet implemented, operations:', operations);
+    console.log(
+      "Video processing not yet implemented, operations:",
+      operations
+    );
     return videoData;
   }
 
   /**
    * Helper: Create video element from ArrayBuffer
    */
-  private async createVideoFromData(data: ArrayBuffer): Promise<HTMLVideoElement> {
-    const blob = new Blob([data], { type: 'video/mp4' });
+  private async createVideoFromData(
+    data: ArrayBuffer
+  ): Promise<HTMLVideoElement> {
+    const blob = new Blob([data], { type: "video/mp4" });
     const url = URL.createObjectURL(blob);
 
-    const video = document.createElement('video');
+    const video = document.createElement("video");
     video.src = url;
     video.muted = true;
     video.playsInline = true;
-    video.preload = 'metadata';
+    video.preload = "metadata";
 
     // Wait for video to be ready
     await new Promise<void>((resolve, reject) => {
-      const timeout = setTimeout(() => reject(new Error('Video loading timeout')), 10000);
+      const timeout = setTimeout(
+        () => reject(new Error("Video loading timeout")),
+        10_000
+      );
 
       video.onloadeddata = () => {
         clearTimeout(timeout);
@@ -286,7 +307,7 @@ class VideoProcessor {
 
       video.onerror = () => {
         clearTimeout(timeout);
-        reject(new Error('Failed to load video data'));
+        reject(new Error("Failed to load video data"));
       };
     });
 
@@ -301,14 +322,18 @@ class VideoProcessor {
       URL.revokeObjectURL(video.src);
     }
     video.pause();
-    video.removeAttribute('src');
+    video.removeAttribute("src");
     video.load();
   }
 
   /**
    * Helper: Draw image with cover scaling
    */
-  private drawImageCover(img: HTMLVideoElement | HTMLImageElement, targetWidth: number, targetHeight: number): void {
+  private drawImageCover(
+    img: HTMLVideoElement | HTMLImageElement,
+    targetWidth: number,
+    targetHeight: number
+  ): void {
     const imgAspect = img.videoWidth || img.naturalWidth;
     const imgHeight = img.videoHeight || img.naturalHeight;
     const imgRatio = imgAspect / imgHeight;
@@ -339,7 +364,8 @@ class VideoProcessor {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
       reader.onload = () => resolve(reader.result as string);
-      reader.onerror = () => reject(new Error('Failed to convert blob to data URL'));
+      reader.onerror = () =>
+        reject(new Error("Failed to convert blob to data URL"));
       reader.readAsDataURL(blob);
     });
   }
@@ -363,6 +389,3 @@ self.onmessage = async (event: MessageEvent<VideoProcessorMessage>) => {
   const response = await processor.processMessage(event.data);
   self.postMessage(response);
 };
-
-export type {};
-export {}; // Make this a module

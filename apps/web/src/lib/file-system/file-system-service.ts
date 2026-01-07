@@ -11,13 +11,13 @@ import {
   FileSystemFileHandle,
   FileSystemDirectoryHandle,
   createWebFileSystemProvider,
-  getMediaFileType
-} from './file-system-abstraction';
+  getMediaFileType,
+} from "./file-system-abstraction";
 
 export interface PersistentFileHandle {
   id: string;
   name: string;
-  kind: 'file' | 'directory';
+  kind: "file" | "directory";
   path: string;
   serializedHandle: string;
   lastAccessed: number;
@@ -31,7 +31,7 @@ export interface LibraryFileItem {
   id: string;
   handle: FileSystemFileHandle;
   name: string;
-  type: 'video' | 'image' | 'audio' | 'other';
+  type: "video" | "image" | "audio" | "other";
   size: number;
   lastModified: number;
   thumbnail?: string;
@@ -69,11 +69,11 @@ class FileSystemService {
 
   constructor(config?: Partial<FileSystemServiceConfig>) {
     this.config = {
-      dbName: 'opencut-file-system',
-      handleStoreName: 'persistent-handles',
+      dbName: "opencut-file-system",
+      handleStoreName: "persistent-handles",
       maxCachedHandles: 1000,
       autoCleanupInterval: 24 * 60 * 60 * 1000, // 24 hours
-      ...config
+      ...config,
     };
 
     // Initialize provider based on environment
@@ -89,7 +89,7 @@ class FileSystemService {
 
   private initializeProvider(): FileSystemProvider {
     // Web environment - File System Access API
-    if (typeof window !== 'undefined' && 'showDirectoryPicker' in window) {
+    if (typeof window !== "undefined" && "showDirectoryPicker" in window) {
       return createWebFileSystemProvider();
     }
 
@@ -98,7 +98,7 @@ class FileSystemService {
     //   return createElectronFileSystemProvider();
     // }
 
-    throw new Error('No compatible file system provider available');
+    throw new Error("No compatible file system provider available");
   }
 
   /**
@@ -109,15 +109,16 @@ class FileSystemService {
     files: LibraryFileItem[];
   }> {
     if (!this.provider.isAvailable()) {
-      throw new Error('File system provider not available');
+      throw new Error("File system provider not available");
     }
 
     const directoryHandle = await this.provider.showDirectoryPicker();
 
     // Request permission for the directory
-    const hasPermission = await this.provider.requestPermission(directoryHandle);
+    const hasPermission =
+      await this.provider.requestPermission(directoryHandle);
     if (!hasPermission) {
-      throw new Error('Permission denied for directory access');
+      throw new Error("Permission denied for directory access");
     }
 
     // Create library directory
@@ -127,7 +128,7 @@ class FileSystemService {
       name: directoryHandle.name,
       path: directoryHandle.path,
       itemCount: 0,
-      lastScanned: Date.now()
+      lastScanned: Date.now(),
     };
 
     // Scan for media files
@@ -135,12 +136,12 @@ class FileSystemService {
     const entries = await directoryHandle.getEntries();
 
     for (const entry of entries) {
-      if (entry.kind === 'file') {
+      if (entry.kind === "file") {
         const fileHandle = entry as FileSystemFileHandle;
         const file = await fileHandle.getFile();
         const fileType = getMediaFileType(file.name);
 
-        if (fileType !== 'other') {
+        if (fileType !== "other") {
           // Request permission for individual file
           await this.provider.requestPermission(fileHandle);
 
@@ -153,7 +154,7 @@ class FileSystemService {
             name: file.name,
             type: fileType,
             size: file.size,
-            lastModified: file.lastModified
+            lastModified: file.lastModified,
           };
 
           files.push(libraryFile);
@@ -174,7 +175,7 @@ class FileSystemService {
    */
   async getFile(fileId: string): Promise<File | null> {
     const handle = await this.getPersistentHandle(fileId);
-    if (!handle || handle.kind !== 'file') {
+    if (!handle || handle.kind !== "file") {
       return null;
     }
 
@@ -186,7 +187,7 @@ class FileSystemService {
       // Try to request permission again
       const granted = await this.provider.requestPermission(fileHandle);
       if (!granted) {
-        throw new Error('Permission denied for file access');
+        throw new Error("Permission denied for file access");
       }
     }
 
@@ -206,8 +207,8 @@ class FileSystemService {
       serializedHandle: serialized,
       lastAccessed: Date.now(),
       permissions: {
-        read: await this.provider.queryPermission(handle)
-      }
+        read: await this.provider.queryPermission(handle),
+      },
     };
 
     await this.handleStorage.set(handle.id, persistentHandle);
@@ -216,7 +217,9 @@ class FileSystemService {
   /**
    * Get persistent handle from storage
    */
-  private async getPersistentHandle(id: string): Promise<FileSystemHandle | null> {
+  private async getPersistentHandle(
+    id: string
+  ): Promise<FileSystemHandle | null> {
     // Check cache first
     if (this.handleCache.has(id)) {
       return this.handleCache.get(id)!;
@@ -229,7 +232,9 @@ class FileSystemService {
     }
 
     try {
-      const handle = await this.provider.deserializeHandle(persistentHandle.serializedHandle);
+      const handle = await this.provider.deserializeHandle(
+        persistentHandle.serializedHandle
+      );
       this.handleCache.set(id, handle);
 
       // Update last accessed time
@@ -238,7 +243,7 @@ class FileSystemService {
 
       return handle;
     } catch (error) {
-      console.error('Failed to deserialize handle:', error);
+      console.error("Failed to deserialize handle:", error);
       return null;
     }
   }
@@ -269,8 +274,8 @@ class FileSystemService {
 
     // Get all handles and remove old ones
     const handles = await this.getAllHandles();
-    const oldHandles = handles.filter(handle =>
-      now - handle.lastAccessed > maxAge
+    const oldHandles = handles.filter(
+      (handle) => now - handle.lastAccessed > maxAge
     );
 
     for (const handle of oldHandles) {
@@ -289,8 +294,8 @@ class FileSystemService {
     }
 
     this.cleanupInterval = setInterval(() => {
-      this.cleanupOldHandles().catch(error => {
-        console.error('Error during handle cleanup:', error);
+      this.cleanupOldHandles().catch((error) => {
+        console.error("Error during handle cleanup:", error);
       });
     }, this.config.autoCleanupInterval);
   }
@@ -323,7 +328,9 @@ export function getFileSystemService(): FileSystemService {
   return fileSystemService;
 }
 
-export function createFileSystemService(config?: Partial<FileSystemServiceConfig>): FileSystemService {
+export function createFileSystemService(
+  config?: Partial<FileSystemServiceConfig>
+): FileSystemService {
   return new FileSystemService(config);
 }
 

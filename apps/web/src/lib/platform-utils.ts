@@ -21,7 +21,7 @@ export function isTauri(): boolean {
     hasTauriInternals,
     hasTauri,
     hasTauriIPC,
-    result: hasTauriInternals || hasTauri || hasTauriIPC
+    result: hasTauriInternals || hasTauri || hasTauriIPC,
   });
 
   // More lenient detection - any Tauri indicator should be sufficient
@@ -54,7 +54,7 @@ export function getPlatform(): "web" | "desktop" {
  */
 export function getPlatformErrorMessage(_feature: string): string {
   if (isTauri()) {
-    return `This feature requires desktop app updates. Please check for app updates.`;
+    return "This feature requires desktop app updates. Please check for app updates.";
   }
-  return `This feature requires a modern browser with File System Access API support (Chrome/Edge).`;
+  return "This feature requires a modern browser with File System Access API support (Chrome/Edge).";
 }

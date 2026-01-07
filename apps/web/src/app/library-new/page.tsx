@@ -47,7 +47,10 @@ import {
   LibraryItem,
   LibraryFolder,
 } from "@/lib/library-service-new";
-import { isFileSystemAccessApiAvailable, getPlatformErrorMessage } from "@/lib/platform-utils";
+import {
+  isFileSystemAccessApiAvailable,
+  getPlatformErrorMessage,
+} from "@/lib/platform-utils";
 
 export default function EnhancedLibraryPage() {
   const [isLoading, setIsLoading] = useState(true);
@@ -120,12 +123,18 @@ export default function EnhancedLibraryPage() {
           try {
             const thumbnail = await libraryService.generateThumbnail(file);
             if (thumbnail) {
-              await libraryService.saveThumbnail(file.id, await fetch(thumbnail).then(r => r.blob()));
+              await libraryService.saveThumbnail(
+                file.id,
+                await fetch(thumbnail).then((r) => r.blob())
+              );
               // Update item with thumbnail
               await libraryService.addItem({ ...file, thumbnail });
             }
           } catch (thumbError) {
-            console.warn(`Failed to generate thumbnail for ${file.name}:`, thumbError);
+            console.warn(
+              `Failed to generate thumbnail for ${file.name}:`,
+              thumbError
+            );
           }
         }
         processedCount++;
@@ -136,7 +145,9 @@ export default function EnhancedLibraryPage() {
       const updatedData = await libraryService.getLibraryData();
       setLibraryData(updatedData);
 
-      console.log(`Successfully imported ${result.files.length} files from ${result.directory.name}`);
+      console.log(
+        `Successfully imported ${result.files.length} files from ${result.directory.name}`
+      );
     } catch (error) {
       console.error("Failed to import folder:", error);
       if (error instanceof Error && error.name !== "AbortError") {
@@ -188,7 +199,7 @@ export default function EnhancedLibraryPage() {
     const mins = Math.floor(seconds / 60);
     const secs = Math.floor(seconds % 60);
     return `${mins}:${secs.toString().padStart(2, "0")}`;
-  }
+  };
 
   // Get filtered and sorted items
   const getFilteredAndSortedItems = useCallback(() => {
@@ -341,8 +352,12 @@ export default function EnhancedLibraryPage() {
         {isScanning && scanProgress > 0 && (
           <div className="mb-6">
             <div className="flex items-center justify-between mb-2">
-              <span className="text-sm text-muted-foreground">Processing files...</span>
-              <span className="text-sm text-muted-foreground">{Math.round(scanProgress)}%</span>
+              <span className="text-sm text-muted-foreground">
+                Processing files...
+              </span>
+              <span className="text-sm text-muted-foreground">
+                {Math.round(scanProgress)}%
+              </span>
             </div>
             <Progress value={scanProgress} className="h-2" />
           </div>
@@ -361,7 +376,9 @@ export default function EnhancedLibraryPage() {
           <Alert className="mb-6">
             <CheckCircle className="h-4 w-4" />
             <AlertDescription>
-              File handle refresh completed: {refreshStatus.successful} accessible, {refreshStatus.failed} failed out of {refreshStatus.total} total items.
+              File handle refresh completed: {refreshStatus.successful}{" "}
+              accessible, {refreshStatus.failed} failed out of{" "}
+              {refreshStatus.total} total items.
             </AlertDescription>
           </Alert>
         )}
@@ -723,7 +740,11 @@ function EnhancedLibraryItemList({
   );
 }
 
-function EnhancedLibraryItemSkeleton({ viewMode }: { viewMode: "grid" | "list" }) {
+function EnhancedLibraryItemSkeleton({
+  viewMode,
+}: {
+  viewMode: "grid" | "list";
+}) {
   if (viewMode === "list") {
     return (
       <Card className="p-4">
@@ -759,7 +780,8 @@ function EnhancedEmptyLibrary({ onImport }: { onImport: () => Promise<void> }) {
       <h3 className="text-lg font-medium mb-2">No library content</h3>
       <p className="text-muted-foreground mb-6 max-w-md">
         Import a folder to browse your video materials, images, and audio files.
-        Files are referenced without copying - they stay in their original location.
+        Files are referenced without copying - they stay in their original
+        location.
       </p>
       <Button size="lg" className="gap-2" onClick={onImport}>
         <Upload className="h-4 w-4" />

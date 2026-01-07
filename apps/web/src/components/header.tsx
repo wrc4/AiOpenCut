@@ -2,10 +2,17 @@
 
 import Link from "next/link";
 import { Button } from "./ui/button";
-import { ArrowRight } from "lucide-react";
+import { ArrowRight, Settings, User } from "lucide-react";
 import { HeaderBase } from "./header-base";
 import Image from "next/image";
 import { ThemeToggle } from "./theme-toggle";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+  DropdownMenuSeparator,
+} from "./ui/dropdown-menu";
 
 export function Header() {
   const leftContent = (
@@ -48,6 +55,37 @@ export function Header() {
           </Button>
         </Link>
       </div>
+
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button variant="outline" size="sm" className="gap-2">
+            <User className="h-4 w-4" />
+            <span className="hidden sm:block">Account</span>
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="w-48">
+          <DropdownMenuItem asChild>
+            <Link
+              href="/config"
+              className="flex items-center gap-2 cursor-pointer"
+            >
+              <Settings className="h-4 w-4" />
+              Settings
+            </Link>
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem
+            onClick={() => {
+              if (typeof window !== "undefined") {
+                window.open("https://github.com/opencut/opencut", "_blank");
+              }
+            }}
+          >
+            GitHub Repository
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+
       <ThemeToggle className="mr-2" />
     </nav>
   );

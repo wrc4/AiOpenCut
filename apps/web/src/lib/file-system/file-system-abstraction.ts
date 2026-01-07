@@ -7,20 +7,20 @@
 export interface FileHandle {
   id: string;
   name: string;
-  kind: 'file' | 'directory';
+  kind: "file" | "directory";
   path: string;
   lastModified?: number;
   size?: number;
 }
 
 export interface FileSystemFileHandle extends FileHandle {
-  kind: 'file';
+  kind: "file";
   getFile(): Promise<File>;
   createWritable?(): Promise<any>;
 }
 
 export interface FileSystemDirectoryHandle extends FileHandle {
-  kind: 'directory';
+  kind: "directory";
   getEntries(): Promise<FileSystemHandle[]>;
   getFileHandle(name: string): Promise<FileSystemFileHandle>;
   getDirectoryHandle(name: string): Promise<FileSystemDirectoryHandle>;
@@ -81,19 +81,41 @@ export interface FilePickerAcceptType {
 /**
  * Media file type detection
  */
-export function getMediaFileType(fileName: string): 'video' | 'image' | 'audio' | 'other' {
-  const ext = fileName.split('.').pop()?.toLowerCase();
-  if (!ext) return 'other';
+export function getMediaFileType(
+  fileName: string
+): "video" | "image" | "audio" | "other" {
+  const ext = fileName.split(".").pop()?.toLowerCase();
+  if (!ext) return "other";
 
-  const videoExts = ['mp4', 'webm', 'ogg', 'mov', 'avi', 'mkv', 'flv', 'wmv', 'm4v'];
-  const imageExts = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'bmp', 'tiff', 'tif'];
-  const audioExts = ['mp3', 'wav', 'ogg', 'm4a', 'flac', 'aac', 'wma'];
+  const videoExts = [
+    "mp4",
+    "webm",
+    "ogg",
+    "mov",
+    "avi",
+    "mkv",
+    "flv",
+    "wmv",
+    "m4v",
+  ];
+  const imageExts = [
+    "jpg",
+    "jpeg",
+    "png",
+    "gif",
+    "webp",
+    "svg",
+    "bmp",
+    "tiff",
+    "tif",
+  ];
+  const audioExts = ["mp3", "wav", "ogg", "m4a", "flac", "aac", "wma"];
 
-  if (videoExts.includes(ext)) return 'video';
-  if (imageExts.includes(ext)) return 'image';
-  if (audioExts.includes(ext)) return 'audio';
+  if (videoExts.includes(ext)) return "video";
+  if (imageExts.includes(ext)) return "image";
+  if (audioExts.includes(ext)) return "audio";
 
-  return 'other';
+  return "other";
 }
 
 /**
@@ -107,6 +129,6 @@ export async function extractFileMetadata(file: File): Promise<{
   return {
     size: file.size,
     lastModified: file.lastModified,
-    type: getMediaFileType(file.name)
+    type: getMediaFileType(file.name),
   };
 }

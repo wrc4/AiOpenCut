@@ -10,9 +10,12 @@ import {
   getFileSystemService,
   FileSystemService,
   LibraryFileItem,
-  LibraryDirectory
+  LibraryDirectory,
 } from "./file-system/file-system-service";
-import { getVideoProcessingService, VideoProcessingOptions } from "./video/video-processing-service";
+import {
+  getVideoProcessingService,
+  VideoProcessingOptions,
+} from "./video/video-processing-service";
 
 export interface LibraryItem {
   id: string;
@@ -30,7 +33,7 @@ export interface LibraryItem {
   // New: original file path for reference
   originalPath?: string;
   // New: file system type (web, electron, etc.)
-  fileSystemType?: 'web' | 'electron' | 'native';
+  fileSystemType?: "web" | "electron" | "native";
 }
 
 export interface LibraryFolder {
@@ -42,7 +45,7 @@ export interface LibraryFolder {
   // New: directory handle reference
   directoryHandleId?: string;
   // New: file system type
-  fileSystemType?: 'web' | 'electron' | 'native';
+  fileSystemType?: "web" | "electron" | "native";
 }
 
 export interface LibraryData {
@@ -58,7 +61,7 @@ export interface LibrarySettings {
   supportedFormats: string[];
   thumbnailQuality: "low" | "medium" | "high";
   // New: file system settings
-  fileSystemType: 'web' | 'electron' | 'native';
+  fileSystemType: "web" | "electron" | "native";
   persistFileHandles: boolean;
   autoRefreshHandles: boolean;
 }
@@ -86,8 +89,8 @@ class EnhancedLibraryService {
     thumbnailSizes: {
       small: 64,
       medium: 128,
-      large: 256
-    }
+      large: 256,
+    },
   };
 
   constructor() {
@@ -128,10 +131,10 @@ class EnhancedLibraryService {
             ...this.config.supportedAudioFormats,
           ],
           thumbnailQuality: "medium",
-          fileSystemType: 'web',
+          fileSystemType: "web",
           persistFileHandles: true,
-          autoRefreshHandles: true
-        }
+          autoRefreshHandles: true,
+        },
       };
 
       await this.libraryAdapter.set("user-library", defaultData);
@@ -153,20 +156,22 @@ class EnhancedLibraryService {
    * Migrate from old library schema to enhanced schema
    */
   private async migrateFromOldSchema(oldData: any): Promise<LibraryData> {
-    console.log('Migrating from old library schema to enhanced schema...');
+    console.log("Migrating from old library schema to enhanced schema...");
 
     const enhancedData: LibraryData = {
-      folders: oldData.folders?.map((folder: any) => ({
-        ...folder,
-        fileSystemType: 'web',
-        directoryHandleId: undefined
-      })) || [],
-      items: oldData.items?.map((item: any) => ({
-        ...item,
-        fileHandleId: undefined,
-        originalPath: item.id, // Use old ID as original path
-        fileSystemType: 'web'
-      })) || [],
+      folders:
+        oldData.folders?.map((folder: any) => ({
+          ...folder,
+          fileSystemType: "web",
+          directoryHandleId: undefined,
+        })) || [],
+      items:
+        oldData.items?.map((item: any) => ({
+          ...item,
+          fileHandleId: undefined,
+          originalPath: item.id, // Use old ID as original path
+          fileSystemType: "web",
+        })) || [],
       lastUpdated: new Date().toISOString(),
       settings: {
         autoScanFolders: oldData.settings?.autoScanFolders ?? true,
@@ -176,15 +181,15 @@ class EnhancedLibraryService {
           ...this.config.supportedImageFormats,
           ...this.config.supportedAudioFormats,
         ],
-        thumbnailQuality: oldData.settings?.thumbnailQuality || 'medium',
-        fileSystemType: 'web',
+        thumbnailQuality: oldData.settings?.thumbnailQuality || "medium",
+        fileSystemType: "web",
         persistFileHandles: true,
-        autoRefreshHandles: true
-      }
+        autoRefreshHandles: true,
+      },
     };
 
     await this.libraryAdapter.set("user-library", enhancedData);
-    console.log('Migration completed successfully');
+    console.log("Migration completed successfully");
     return enhancedData;
   }
 
@@ -206,7 +211,7 @@ class EnhancedLibraryService {
         itemCount: result.files.length,
         lastScanned: new Date().toISOString(),
         directoryHandleId: result.directory.id,
-        fileSystemType: 'web'
+        fileSystemType: "web",
       };
 
       const libraryItems: LibraryItem[] = [];
@@ -220,7 +225,7 @@ class EnhancedLibraryService {
           lastModified: new Date(file.lastModified).toISOString(),
           fileHandleId: file.id,
           originalPath: file.name,
-          fileSystemType: 'web'
+          fileSystemType: "web",
         };
 
         libraryItems.push(libraryItem);
@@ -237,7 +242,7 @@ class EnhancedLibraryService {
    * Generate thumbnail for library item using file handle
    */
   async generateThumbnail(item: LibraryItem): Promise<string | null> {
-    if (!item.fileHandleId || item.type !== 'video') {
+    if (!item.fileHandleId || item.type !== "video") {
       return null;
     }
 
@@ -253,11 +258,14 @@ class EnhancedLibraryService {
           time: 1, // 1 second into video
           width: 128,
           height: 72,
-          quality: 0.7
-        }
+          quality: 0.7,
+        },
       };
 
-      const result = await this.videoProcessingService.processVideo(file, options);
+      const result = await this.videoProcessingService.processVideo(
+        file,
+        options
+      );
       return result.thumbnail || null;
     } catch (error) {
       console.error(`Failed to generate thumbnail for ${item.name}:`, error);
@@ -274,7 +282,7 @@ class EnhancedLibraryService {
     height?: number;
     framerate?: number;
   } | null> {
-    if (!item.fileHandleId || item.type !== 'video') {
+    if (!item.fileHandleId || item.type !== "video") {
       return null;
     }
 
@@ -285,10 +293,13 @@ class EnhancedLibraryService {
       }
 
       const options: VideoProcessingOptions = {
-        getMetadata: true
+        getMetadata: true,
       };
 
-      const result = await this.videoProcessingService.processVideo(file, options);
+      const result = await this.videoProcessingService.processVideo(
+        file,
+        options
+      );
       return result.metadata || null;
     } catch (error) {
       console.error(`Failed to get metadata for ${item.name}:`, error);
@@ -480,8 +491,9 @@ class EnhancedLibraryService {
         imageCount: data.items.filter((item) => item.type === "image").length,
         audioCount: data.items.filter((item) => item.type === "audio").length,
         totalSize: data.items.reduce((sum, item) => sum + (item.size || 0), 0),
-        itemsWithHandles: data.items.filter((item) => !!item.fileHandleId).length,
-        accessibleItems: 0 // Will be calculated separately
+        itemsWithHandles: data.items.filter((item) => !!item.fileHandleId)
+          .length,
+        accessibleItems: 0, // Will be calculated separately
       };
 
       return stats;
@@ -528,4 +540,4 @@ export function getEnhancedLibraryService(): EnhancedLibraryService {
 }
 
 export { EnhancedLibraryService as LibraryService }; // For backward compatibility
-export { LibraryItem, LibraryFolder, LibraryData, LibrarySettings };
+export type { LibraryItem, LibraryFolder, LibraryData, LibrarySettings };

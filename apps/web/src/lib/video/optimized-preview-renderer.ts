@@ -22,7 +22,7 @@ export interface RenderFrame {
 
 export interface RenderElement {
   id: string;
-  type: 'video' | 'image' | 'text' | 'shape';
+  type: "video" | "image" | "text" | "shape";
   x: number;
   y: number;
   width: number;
@@ -38,7 +38,7 @@ export interface RenderElement {
 export interface RenderOptions {
   clearBackground?: boolean;
   smoothRendering?: boolean;
-  quality?: 'low' | 'medium' | 'high';
+  quality?: "low" | "medium" | "high";
 }
 
 /**
@@ -61,25 +61,25 @@ export class OptimizedPreviewRenderer {
       useDoubleBuffering: true,
       useWebWorker: false,
       frameRate: 60,
-      ...config
+      ...config,
     };
 
     this.canvas = config.canvas;
-    this.ctx = this.canvas.getContext('2d', {
+    this.ctx = this.canvas.getContext("2d", {
       alpha: false,
       desynchronized: true,
-      willReadFrequently: false
+      willReadFrequently: false,
     })!;
 
     // Create offscreen canvas for double buffering
     if (this.config.useDoubleBuffering) {
-      this.offscreenCanvas = document.createElement('canvas');
+      this.offscreenCanvas = document.createElement("canvas");
       this.offscreenCanvas.width = config.width;
       this.offscreenCanvas.height = config.height;
-      this.offscreenCtx = this.offscreenCanvas.getContext('2d', {
+      this.offscreenCtx = this.offscreenCanvas.getContext("2d", {
         alpha: false,
         desynchronized: true,
-        willReadFrequently: false
+        willReadFrequently: false,
       })!;
     }
 
@@ -157,10 +157,10 @@ export class OptimizedPreviewRenderer {
     `;
 
     try {
-      const blob = new Blob([workerCode], { type: 'application/javascript' });
+      const blob = new Blob([workerCode], { type: "application/javascript" });
       this.worker = new Worker(URL.createObjectURL(blob));
     } catch (error) {
-      console.warn('Failed to create worker:', error);
+      console.warn("Failed to create worker:", error);
       this.config.useWebWorker = false;
     }
   }
@@ -168,7 +168,10 @@ export class OptimizedPreviewRenderer {
   /**
    * Render a frame with optimized performance
    */
-  async renderFrame(frame: RenderFrame, options: RenderOptions = {}): Promise<void> {
+  async renderFrame(
+    frame: RenderFrame,
+    options: RenderOptions = {}
+  ): Promise<void> {
     if (this.isRendering) {
       // Queue frame if already rendering
       this.frameQueue.push(frame);
@@ -197,8 +200,13 @@ export class OptimizedPreviewRenderer {
   /**
    * Render frame directly on main thread with double buffering
    */
-  private async renderFrameDirectly(frame: RenderFrame, options: RenderOptions): Promise<void> {
-    const renderCtx = this.config.useDoubleBuffering ? this.offscreenCtx : this.ctx;
+  private async renderFrameDirectly(
+    frame: RenderFrame,
+    options: RenderOptions
+  ): Promise<void> {
+    const renderCtx = this.config.useDoubleBuffering
+      ? this.offscreenCtx
+      : this.ctx;
     const targetCtx = this.ctx;
 
     // Clear background if requested
@@ -214,7 +222,7 @@ export class OptimizedPreviewRenderer {
 
     // Render elements with optimized settings
     renderCtx.imageSmoothingEnabled = options.smoothRendering !== false;
-    renderCtx.imageSmoothingQuality = options.quality || 'medium';
+    renderCtx.imageSmoothingQuality = options.quality || "medium";
 
     // Render elements in order (back to front)
     for (const element of frame.elements) {
@@ -231,14 +239,17 @@ export class OptimizedPreviewRenderer {
   /**
    * Render frame using Web Worker for better performance
    */
-  private async renderFrameWithWorker(frame: RenderFrame, options: RenderOptions): Promise<void> {
+  private async renderFrameWithWorker(
+    frame: RenderFrame,
+    options: RenderOptions
+  ): Promise<void> {
     if (!this.worker) {
       return this.renderFrameDirectly(frame, options);
     }
 
     return new Promise((resolve, reject) => {
       const timeout = setTimeout(() => {
-        reject(new Error('Worker rendering timeout'));
+        reject(new Error("Worker rendering timeout"));
       }, 1000);
 
       this.worker!.onmessage = (e) => {
@@ -252,7 +263,10 @@ export class OptimizedPreviewRenderer {
 
       this.worker!.onerror = (error) => {
         clearTimeout(timeout);
-        console.warn('Worker rendering failed, falling back to main thread:', error);
+        console.warn(
+          "Worker rendering failed, falling back to main thread:",
+          error
+        );
         this.renderFrameDirectly(frame, options).then(resolve).catch(reject);
       };
 
@@ -260,7 +274,7 @@ export class OptimizedPreviewRenderer {
         frame,
         width: this.canvas.width,
         height: this.canvas.height,
-        quality: options.quality
+        quality: options.quality,
       });
     });
   }
@@ -278,25 +292,31 @@ export class OptimizedPreviewRenderer {
   /**
    * Render individual element with optimizations
    */
-  private renderElement(ctx: CanvasRenderingContext2D, element: RenderElement): void {
+  private renderElement(
+    ctx: CanvasRenderingContext2D,
+    element: RenderElement
+  ): void {
     ctx.save();
 
     try {
       // Apply transforms
-      ctx.translate(element.x + element.width / 2, element.y + element.height / 2);
+      ctx.translate(
+        element.x + element.width / 2,
+        element.y + element.height / 2
+      );
       ctx.rotate(element.rotation);
       ctx.globalAlpha = element.opacity;
 
       // Render based on element type
       switch (element.type) {
-        case 'video':
-        case 'image':
+        case "video":
+        case "image":
           this.renderMediaElement(ctx, element);
           break;
-        case 'text':
+        case "text":
           this.renderTextElement(ctx, element);
           break;
-        case 'shape':
+        case "shape":
           this.renderShapeElement(ctx, element);
           break;
       }
@@ -308,7 +328,10 @@ export class OptimizedPreviewRenderer {
   /**
    * Render media element (video/image) with optimizations
    */
-  private renderMediaElement(ctx: CanvasRenderingContext2D, element: RenderElement): void {
+  private renderMediaElement(
+    ctx: CanvasRenderingContext2D,
+    element: RenderElement
+  ): void {
     if (!element.source) return;
 
     // Check if source is ready
@@ -331,24 +354,35 @@ export class OptimizedPreviewRenderer {
   /**
    * Render text element
    */
-  private renderTextElement(ctx: CanvasRenderingContext2D, element: RenderElement): void {
+  private renderTextElement(
+    ctx: CanvasRenderingContext2D,
+    element: RenderElement
+  ): void {
     if (!element.text || !element.font || !element.color) return;
 
     ctx.font = element.font;
     ctx.fillStyle = element.color;
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
     ctx.fillText(element.text, 0, 0);
   }
 
   /**
    * Render shape element
    */
-  private renderShapeElement(ctx: CanvasRenderingContext2D, element: RenderElement): void {
+  private renderShapeElement(
+    ctx: CanvasRenderingContext2D,
+    element: RenderElement
+  ): void {
     if (!element.color) return;
 
     ctx.fillStyle = element.color;
-    ctx.fillRect(-element.width / 2, -element.height / 2, element.width, element.height);
+    ctx.fillRect(
+      -element.width / 2,
+      -element.height / 2,
+      element.width,
+      element.height
+    );
   }
 
   /**
@@ -426,8 +460,8 @@ export class OptimizedPreviewRenderer {
       isUsingDoubleBuffering: this.config.useDoubleBuffering,
       canvasSize: {
         width: this.canvas.width,
-        height: this.canvas.height
-      }
+        height: this.canvas.height,
+      },
     };
   }
 }
@@ -448,7 +482,7 @@ export function createOptimizedPreviewRenderer(
     useDoubleBuffering: true,
     useWebWorker: false, // Disabled by default due to complexity
     frameRate: 60,
-    ...options
+    ...options,
   });
 }
 
@@ -468,7 +502,7 @@ export function createWorkerPreviewRenderer(
     useDoubleBuffering: true,
     useWebWorker: true,
     frameRate: 60,
-    ...options
+    ...options,
   });
 }
 
@@ -485,7 +519,7 @@ export class PreviewPerformanceMonitor {
     frameTimes: [],
     renderTimes: [],
     droppedFrames: 0,
-    totalFrames: 0
+    totalFrames: 0,
   };
 
   recordFrameTime(time: number): void {
@@ -512,12 +546,18 @@ export class PreviewPerformanceMonitor {
 
   getAverageFrameTime(): number {
     if (this.metrics.frameTimes.length === 0) return 0;
-    return this.metrics.frameTimes.reduce((a, b) => a + b, 0) / this.metrics.frameTimes.length;
+    return (
+      this.metrics.frameTimes.reduce((a, b) => a + b, 0) /
+      this.metrics.frameTimes.length
+    );
   }
 
   getAverageRenderTime(): number {
     if (this.metrics.renderTimes.length === 0) return 0;
-    return this.metrics.renderTimes.reduce((a, b) => a + b, 0) / this.metrics.renderTimes.length;
+    return (
+      this.metrics.renderTimes.reduce((a, b) => a + b, 0) /
+      this.metrics.renderTimes.length
+    );
   }
 
   getFrameRate(): number {
@@ -538,7 +578,7 @@ export class PreviewPerformanceMonitor {
       frameRate: this.getFrameRate(),
       droppedFrames: this.metrics.droppedFrames,
       totalFrames: this.metrics.totalFrames,
-      dropRate: this.getDropRate()
+      dropRate: this.getDropRate(),
     };
   }
 
@@ -547,7 +587,7 @@ export class PreviewPerformanceMonitor {
       frameTimes: [],
       renderTimes: [],
       droppedFrames: 0,
-      totalFrames: 0
+      totalFrames: 0,
     };
   }
 }

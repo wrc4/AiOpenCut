@@ -9,47 +9,50 @@ import {
   FileSystemHandle,
   FileSystemFileHandle,
   FileSystemDirectoryHandle,
-  FilePickerAcceptType
-} from './file-system-abstraction';
+  FilePickerAcceptType,
+} from "./file-system-abstraction";
 
 interface SerializedFileHandle {
-  type: 'file';
+  type: "file";
   name: string;
   path: string;
-  kind: 'file';
+  kind: "file";
 }
 
 interface SerializedDirectoryHandle {
-  type: 'directory';
+  type: "directory";
   name: string;
   path: string;
-  kind: 'directory';
+  kind: "directory";
 }
 
 type SerializedHandle = SerializedFileHandle | SerializedDirectoryHandle;
 
 export class WebFileSystemProvider implements FileSystemProvider {
-  private handleCache = new Map<string, FileSystemFileHandle | FileSystemDirectoryHandle>();
+  private handleCache = new Map<
+    string,
+    FileSystemFileHandle | FileSystemDirectoryHandle
+  >();
   private permissionCache = new Map<string, boolean>();
 
   isAvailable(): boolean {
-    return typeof window !== 'undefined' && 'showDirectoryPicker' in window;
+    return typeof window !== "undefined" && "showDirectoryPicker" in window;
   }
 
   async showDirectoryPicker(): Promise<FileSystemDirectoryHandle> {
     if (!this.isAvailable()) {
-      throw new Error('File System Access API is not available');
+      throw new Error("File System Access API is not available");
     }
 
     try {
       const nativeHandle = await (window as any).showDirectoryPicker({
-        mode: 'read'
+        mode: "read",
       });
 
       return this.wrapDirectoryHandle(nativeHandle);
     } catch (error) {
-      if (error instanceof Error && error.name === 'AbortError') {
-        throw new Error('User cancelled directory selection');
+      if (error instanceof Error && error.name === "AbortError") {
+        throw new Error("User cancelled directory selection");
       }
       throw error;
     }
@@ -60,19 +63,19 @@ export class WebFileSystemProvider implements FileSystemProvider {
     types?: FilePickerAcceptType[];
   }): Promise<FileSystemFileHandle[]> {
     if (!this.isAvailable()) {
-      throw new Error('File System Access API is not available');
+      throw new Error("File System Access API is not available");
     }
 
     try {
       const handles = await (window as any).showOpenFilePicker({
         multiple: options?.multiple ?? false,
-        types: options?.types
+        types: options?.types,
       });
 
       return handles.map((handle: any) => this.wrapFileHandle(handle));
     } catch (error) {
-      if (error instanceof Error && error.name === 'AbortError') {
-        throw new Error('User cancelled file selection');
+      if (error instanceof Error && error.name === "AbortError") {
+        throw new Error("User cancelled file selection");
       }
       throw error;
     }
@@ -90,13 +93,13 @@ export class WebFileSystemProvider implements FileSystemProvider {
       const nativeHandle = await this.getNativeHandle(handle);
       if (!nativeHandle) return false;
 
-      const result = await nativeHandle.requestPermission({ mode: 'read' });
-      const granted = result === 'granted';
+      const result = await nativeHandle.requestPermission({ mode: "read" });
+      const granted = result === "granted";
 
       this.permissionCache.set(cacheKey, granted);
       return granted;
     } catch (error) {
-      console.error('Error requesting permission:', error);
+      console.error("Error requesting permission:", error);
       return false;
     }
   }
@@ -112,13 +115,13 @@ export class WebFileSystemProvider implements FileSystemProvider {
       const nativeHandle = await this.getNativeHandle(handle);
       if (!nativeHandle) return false;
 
-      const result = await nativeHandle.queryPermission({ mode: 'read' });
-      const granted = result === 'granted';
+      const result = await nativeHandle.queryPermission({ mode: "read" });
+      const granted = result === "granted";
 
       this.permissionCache.set(cacheKey, granted);
       return granted;
     } catch (error) {
-      console.error('Error querying permission:', error);
+      console.error("Error querying permission:", error);
       return false;
     }
   }
@@ -128,7 +131,7 @@ export class WebFileSystemProvider implements FileSystemProvider {
       type: handle.kind,
       name: handle.name,
       path: handle.path,
-      kind: handle.kind
+      kind: handle.kind,
     };
 
     return JSON.stringify(serialized);
@@ -147,42 +150,48 @@ export class WebFileSystemProvider implements FileSystemProvider {
         kind: data.kind,
         path: data.path,
         getFile: async () => {
-          throw new Error('File handle needs to be re-acquired via file picker');
-        }
+          throw new Error(
+            "File handle needs to be re-acquired via file picker"
+          );
+        },
       } as FileSystemFileHandle;
     } catch (error) {
       throw new Error(`Failed to deserialize handle: ${error}`);
     }
   }
 
-  private wrapFileHandle(nativeHandle: FileSystemFileHandle): FileSystemFileHandle {
+  private wrapFileHandle(
+    nativeHandle: FileSystemFileHandle
+  ): FileSystemFileHandle {
     const wrapped: FileSystemFileHandle = {
       id: `file-${nativeHandle.name}-${Date.now()}`,
       name: nativeHandle.name,
-      kind: 'file',
+      kind: "file",
       path: nativeHandle.name, // For files, path is just the name
       getFile: async () => {
         return await nativeHandle.getFile();
-      }
+      },
     };
 
     this.handleCache.set(wrapped.id, wrapped);
     return wrapped;
   }
 
-  private wrapDirectoryHandle(nativeHandle: FileSystemDirectoryHandle): FileSystemDirectoryHandle {
+  private wrapDirectoryHandle(
+    nativeHandle: FileSystemDirectoryHandle
+  ): FileSystemDirectoryHandle {
     const wrapped: FileSystemDirectoryHandle = {
       id: `dir-${nativeHandle.name}-${Date.now()}`,
       name: nativeHandle.name,
-      kind: 'directory',
+      kind: "directory",
       path: nativeHandle.name,
       getEntries: async () => {
         const entries: FileSystemHandle[] = [];
         for await (const entry of (nativeHandle as any).entries()) {
           const [name, handle] = entry;
-          if (handle.kind === 'file') {
+          if (handle.kind === "file") {
             entries.push(this.wrapFileHandle(handle));
-          } else if (handle.kind === 'directory') {
+          } else if (handle.kind === "directory") {
             entries.push(this.wrapDirectoryHandle(handle));
           }
         }
@@ -195,7 +204,7 @@ export class WebFileSystemProvider implements FileSystemProvider {
       getDirectoryHandle: async (name: string) => {
         const dirHandle = await (nativeHandle as any).getDirectoryHandle(name);
         return this.wrapDirectoryHandle(dirHandle);
-      }
+      },
     };
 
     this.handleCache.set(wrapped.id, wrapped);
