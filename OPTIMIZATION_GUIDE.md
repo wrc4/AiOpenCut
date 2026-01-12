@@ -69,7 +69,7 @@ import { OptimizedPreviewPanel } from "@/components/editor/optimized-preview-pan
 
 ### Step 3: Update Library Service Usage
 
-**Current**: `import { libraryService } from "@/lib/library-service"`
+**Current**: `import { libraryService } from "@/lib/library-service-backend"`
 **New**: `import { getEnhancedLibraryService } from "@/lib/library-service-new"`
 
 ```typescript

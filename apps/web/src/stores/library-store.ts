@@ -4,7 +4,7 @@ import {
   LibraryData,
   LibraryItem,
   LibraryFolder,
-} from "@/lib/library-service";
+} from "@/lib/library-service-backend";
 
 interface LibraryStore {
   libraryData: LibraryData | null;
@@ -41,7 +41,7 @@ interface LibraryStore {
   }>;
 }
 
-export const useLibraryStore = create<LibraryStore>((set, get) => ({
+export const useLibraryStore = create<LibraryStore>()((set, get) => ({
   libraryData: null,
   isLoading: false,
   isInitialized: false,

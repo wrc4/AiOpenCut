@@ -1,0 +1,7 @@
+### Test the library scan API endpoint
+POST http://localhost:3000/api/library/scan
+Content-Type: application/json
+
+{
+  "rootPath": "/Users/wrc4/dev/AiOpenCut"
+}

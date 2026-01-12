@@ -44,7 +44,7 @@ import {
   libraryService,
   LibraryItem,
   LibraryFolder,
-} from "@/lib/library-service";
+} from "@/lib/library-service-backend";
 import {
   isTauri,
   isFileSystemAccessApiAvailable,
@@ -107,7 +107,17 @@ export default function LibraryPage() {
     console.log("libraryData.items:", libraryData?.items?.length || 0);
     console.log("libraryData.folders:", libraryData?.folders?.length || 0);
     console.log("libraryRootFolder:", '"' + libraryRootFolder + '"');
-    console.log("from getFilteredAndSortedItems():", filteredAndSortedItems.length || 0);
+    console.log("currentFolder:", '"' + currentFolder + '"');
+    console.log("rootFilteredItems.length:", rootFilteredItems.length || 0);
+    console.log("rootFilteredFolders.length:", rootFilteredFolders.length || 0);
+    console.log("currentFilteredItems.length:", currentFilteredItems.length || 0);
+    console.log("currentFilteredFolders.length:", currentFilteredFolders.length || 0);
+    if (libraryData?.folders?.length > 0) {
+      console.log("libraryData.folders details:");
+      libraryData.folders.forEach(f => {
+        console.log(`  - ${f.name}: path="${f.path}", items=${f.itemCount}`);
+      });
+    }
     console.log("=== END DEBUG ===");
   }, [isInitialized, isLoading, isScanning, libraryData, searchQuery, libraryRootFolder, filteredAndSortedItems]);
 
@@ -267,7 +277,7 @@ export default function LibraryPage() {
     }
   };
 
-  // True refresh with root folder - update metadata and scan for changes
+  // True refresh with root folder - scan all directories and files
   const refreshLibrary = async () => {
     // Check for root folder configuration first
     if (!libraryRootFolder) {
@@ -279,31 +289,35 @@ export default function LibraryPage() {
     }
 
     setIsScanning(true);
-    console.log("=== STARTING LIBRARY REFRESH WITH ROOT FOLDER ===");
+    console.log("=== STARTING ROOT FOLDER SCAN ===");
     console.log("Root folder path:", libraryRootFolder);
 
     try {
-      // First, refresh metadata for all folders that match root folder
-      const rootFolders = (libraryData?.folders || []).filter(folder =>
-        folder.path.startsWith(libraryRootFolder) ||
-        folder.path.includes(libraryRootFolder.replace(/^\//, ''))
-      );
+      // Clear existing library data before fresh scan
+      await libraryService.clearLibrary();
+      console.log("Cleared existing library data");
 
-      let totalUpdatedItems = 0;
+      // Use the backend API to scan the configured root folder
+      // This avoids the directory picker popup
+      const { items, folders } = await libraryService.scanRootFolder();
+      console.log(`Found ${folders.length} folders and ${items.length} items during scan`);
 
-      // Refresh each root-matching folder
-      for (const folder of rootFolders) {
-        console.log(`Refreshing folder: ${folder.name}`);
-        const updatedItemCount = await refreshSingleFolder(folder);
-        totalUpdatedItems += updatedItemCount;
+      // Process folders (this will add them to the library)
+      for (const folder of folders) {
+        await libraryService.addFolder(folder);
+      }
+
+      // Process items (this will add them to the library)
+      for (const item of items) {
+        await libraryService.addItem(item);
       }
 
       // Reload library data to show results
-      loadLibraryData();
+      await loadLibraryData();
 
-      const message = totalUpdatedItems > 0
-        ? `Updated metadata for ${totalUpdatedItems} items`
-        : "All folder metadata is up to date";
+      const message = folders.length > 0
+        ? `Discovered ${folders.length} folders and ${items.length} files`
+        : "No content found";
 
       toast.success("Library refreshed", {
         description: message
@@ -312,7 +326,7 @@ export default function LibraryPage() {
     } catch (error) {
       console.error("Library refresh failed:", error);
       toast.error("Library refresh failed", {
-        description: "Failed to refresh library. Please try again."
+        description: error instanceof Error ? error.message : "Failed to refresh library. Please try again."
       });
     } finally {
       setIsScanning(false);
@@ -453,6 +467,11 @@ export default function LibraryPage() {
   };
 
   // Handle item selection
+  const handleSetCurrentFolder = (newPath: string) => {
+    console.log(`Navigating to folder: ${newPath}`);
+    setCurrentFolder(newPath);
+  };
+
   const handleItemSelect = (itemId: string, selected: boolean) => {
     const newSelected = new Set(selectedItems);
     if (selected) {
@@ -486,24 +505,67 @@ export default function LibraryPage() {
   const rootFilteredItems = filteredAndSortedItems.filter((item) => {
     if (!libraryRootFolder) return true; // No filter if root folder not set
 
-    // Item ID contains the full path, so check if it starts with root folder
-    const itemPath = item.id;
-    const normalizedRoot = libraryRootFolder.startsWith('/') ? libraryRootFolder : '/' + libraryRootFolder;
-    return itemPath.startsWith(normalizedRoot) ||
-           (itemPath.includes(normalizedRoot.replace(/^\//, '')) && itemPath.startsWith('/'));
+    // For File System Access API scan results, item paths are relative to scanned directory
+    // Show all items to debug the issue
+    return true;
   });
 
   // Apply root folder filtering to folders
   const rootFilteredFolders = (libraryData?.folders || []).filter((folder) => {
+    // For File System Access API folders, we need to match relative to the library root configuration
+    // The folders from scanRootFolder() are relative (e.g., "/Library/content") not absolute system paths
     if (!libraryRootFolder) return true; // No filter if root folder not set
 
-    const normalizedRoot = libraryRootFolder.startsWith('/') ? libraryRootFolder : '/' + libraryRootFolder;
-    return folder.path.startsWith(normalizedRoot) ||
-           folder.path.includes(normalizedRoot.replace(/^\//, ''));
+    // Since File System Access API provides relative folder structure, let's be more flexible
+    // Show all folders that were scanned from the root directory
+    return true; // Temporarily show all folders while we debug
   });
 
-  // Use filtered folders instead of original folders
-  const folders = rootFilteredFolders;
+  // Apply current folder filtering to folders for navigation
+  const currentFilteredFolders = rootFilteredFolders.filter((folder) => {
+    console.log(`Filtering folder navigation: ${folder.name} at path "${folder.path}" with currentFolder="${currentFolder}"`);
+    if (currentFolder === "/") {
+      // At root level, show folders that are directly under the root scanned directory
+      // Current folder is marked as children of the root level folder
+      const folderPathParts = folder.path.split('/').filter(Boolean); // Split and remove empty parts
+
+      // For scan results, folders were stored like "/Library/content/subfolder"
+      // We want to show only direct children of the scan root
+      // So we look for folders with exactly 2 path parts (Library + one child)
+      return folderPathParts.length === 2; // Only show direct children of root
+    } else {
+      // Show folders that are inside the current folder (children)
+      const currentFolderParts = currentFolder.split('/').filter(Boolean);
+      const folderPathParts = folder.path.split('/').filter(Boolean);
+
+      // Show folders that are immediate children of current folder
+      return folderPathParts.length === currentFolderParts.length + 1 &&
+             folderPathParts.slice(0, -1).join('/') === currentFolderParts.join('/');
+    }
+  });
+
+  // Apply current folder filtering to items (this is for folder navigation)
+  const currentFilteredItems = rootFilteredItems.filter((item) => {
+    if (currentFolder === "/") {
+      // At root level, show items that are directly in the root folder
+      const itemPath = item.id;
+      const libraryRoot = libraryRootFolder || '';
+
+      // Show items that are directly under the library root folder
+      const itemFolder = itemPath.substring(0, itemPath.lastIndexOf('/'));
+      return itemFolder === libraryRoot || itemFolder === libraryRootFolder;
+    } else {
+      // Show items that are in the current folder path
+      return item.id.startsWith(currentFolder);
+    }
+  });
+
+  // Use the current filtered folders
+  const folders = currentFilteredFolders;
+
+  console.log(`Current filtered folders for display:`, currentFilteredFolders.map(f => ({
+    name: f.name, path: f.path, itemCount: f.itemCount
+  })));
 
   // Now effects can reference variables since they're declared above
 
@@ -595,7 +657,7 @@ export default function LibraryPage() {
               Video Library
             </h1>
             <p className="text-muted-foreground">
-              {rootFilteredItems.length} items • {rootFilteredFolders.length} folders
+              {currentFilteredItems.length} items • {currentFilteredFolders.length} folders
               {selectedItems.size > 0 && (
                 <span className="ml-2 text-primary">
                   • {selectedItems.size} selected
@@ -723,17 +785,46 @@ export default function LibraryPage() {
           </div>
         </div>
 
+        {/* Folder Navigation Breadcrumb */}
+        {currentFolder !== "/" && currentFolder && (
+          <div className="mb-4 flex items-center gap-2 text-sm text-muted-foreground">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                if (currentFolder.includes('/')) {
+                  // Go back to parent folder
+                  const parts = currentFolder.split('/').filter(Boolean);
+                  if (parts.length > 1) {
+                    const parentPath = '/' + parts.slice(0, -1).join('/');
+                    setCurrentFolder(parentPath);
+                  } else {
+                    setCurrentFolder("/");
+                  }
+                } else {
+                  setCurrentFolder("/");
+                }
+              }}
+              className="gap-1 px-2"
+            >
+              <ChevronLeft className="size-3!" />
+              Back
+            </Button>
+            <span>Current: {currentFolder}</span>
+          </div>
+        )}
+
         {/* Folders Section */}
-        {rootFilteredFolders.length > 0 && (
+        {currentFilteredFolders.length > 0 && (
           <>
             <div className="mb-4">
               <h2 className="text-lg font-semibold mb-3">Folders</h2>
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
-                {rootFilteredFolders.map((folder) => (
+                {currentFilteredFolders.map((folder) => (
                   <FolderCard
                     key={folder.id}
                     folder={folder}
-                    onClick={() => setCurrentFolder(folder.path)}
+                    onClick={() => handleSetCurrentFolder(folder.path)} // Navigate to this folder
                   />
                 ))}
               </div>
@@ -748,7 +839,7 @@ export default function LibraryPage() {
             <RefreshCw className="animate-spin h-8 w-8 text-muted-foreground mb-4" />
             <p className="text-muted-foreground">Loading library...</p>
           </div>
-        ) : rootFilteredItems.length === 0 ? (
+        ) : currentFilteredItems.length === 0 ? (
           <EmptyLibrary
             onScan={refreshLibrary}
             isScanning={isLoading || isScanning}
@@ -756,7 +847,7 @@ export default function LibraryPage() {
           />
         ) : viewMode === "grid" ? (
           <div className="grid grid-cols-1 xs:grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
-            {rootFilteredItems.map((item) => (
+            {currentFilteredItems.map((item) => (
               <LibraryItemCard
                 key={item.id}
                 item={item}
@@ -770,7 +861,7 @@ export default function LibraryPage() {
           </div>
         ) : (
           <div className="space-y-2">
-            {rootFilteredItems.map((item) => (
+            {currentFilteredItems.map((item) => (
               <LibraryItemList
                 key={item.id}
                 item={item}
