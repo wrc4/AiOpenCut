@@ -114,7 +114,12 @@ class LibraryServiceBackend {
       }
 
       data.lastUpdated = new Date().toISOString();
+
+      console.log(`Storing folder: ${folder.name} (id: ${folder.id}, path: ${folder.path})`);
+      console.log(`Total folders now: ${data.folders.length}`);
+
       await this.libraryAdapter.set("user-library", data);
+      console.log(`Folder stored successfully`);
     } catch (error) {
       console.error("Failed to add folder:", error);
       throw error;
@@ -212,8 +217,9 @@ class LibraryServiceBackend {
     items: LibraryItem[];
     folders: LibraryFolder[];
   }> {
-    // Get the library root folder from config
+    // Get the library root folder from config and settings
     const { libraryRootFolder } = useConfigStore.getState();
+    const data = await this.getLibraryData();
 
     if (!libraryRootFolder) {
       throw new Error("Library root folder not configured. Please set it in Settings.");
@@ -230,6 +236,7 @@ class LibraryServiceBackend {
         },
         body: JSON.stringify({
           rootPath: libraryRootFolder,
+          showHiddenFiles: data.settings.showHiddenFiles,
         }),
       });
 
@@ -253,13 +260,13 @@ class LibraryServiceBackend {
       // We need to adjust them to match our expected format
       const adjustedItems = result.items.map((item: LibraryItem) => ({
         ...item,
-        id: `/${item.id}`, // Ensure paths start with /
+        id: `/${item.id.replace(/^\/+/, '')}`, // Ensure single leading slash
       }));
 
       const adjustedFolders = result.folders.map((folder: LibraryFolder) => ({
         ...folder,
-        id: `/${folder.id}`, // Ensure paths start with /
-        path: `/${folder.path}`, // Ensure paths start with /
+        id: `/${folder.id.replace(/^\/+/, '')}`, // Ensure single leading slash
+        path: `/${folder.path.replace(/^\/+/, '')}`, // Ensure single leading slash
       }));
 
       return {

@@ -299,18 +299,28 @@ export default function LibraryPage() {
 
       // Use the backend API to scan the configured root folder
       // This avoids the directory picker popup
+      console.log('--- Starting scanRootFolder ---');
       const { items, folders } = await libraryService.scanRootFolder();
+      console.log('--- scanRootFolder completed ---');
+      console.log('Scanned folders:', folders);
+      console.log('Scanned items:', items.slice(0, 3), '...and', items.length - 3, 'more');
       console.log(`Found ${folders.length} folders and ${items.length} items during scan`);
 
       // Process folders (this will add them to the library)
+      console.log(`--- Adding ${folders.length} folders to library ---`);
       for (const folder of folders) {
+        console.log(`Processing folder:`, folder);
         await libraryService.addFolder(folder);
       }
+      console.log(`--- Folders added to library ---`);
 
       // Process items (this will add them to the library)
+      console.log(`--- Adding ${items.length} items to library ---`);
       for (const item of items) {
+        console.log(`Processing item:`, item);
         await libraryService.addItem(item);
       }
+      console.log(`--- Items added to library ---`);
 
       // Reload library data to show results
       await loadLibraryData();
@@ -512,53 +522,35 @@ export default function LibraryPage() {
 
   // Apply root folder filtering to folders
   const rootFilteredFolders = (libraryData?.folders || []).filter((folder) => {
-    // For File System Access API folders, we need to match relative to the library root configuration
-    // The folders from scanRootFolder() are relative (e.g., "/Library/content") not absolute system paths
-    if (!libraryRootFolder) return true; // No filter if root folder not set
+    // Debug log
+    console.log('Processing folder for display:', folder);
 
-    // Since File System Access API provides relative folder structure, let's be more flexible
-    // Show all folders that were scanned from the root directory
-    return true; // Temporarily show all folders while we debug
+    // For the new backend API, folders are already relative from root
+    return true; // Show all folders for now
   });
 
   // Apply current folder filtering to folders for navigation
   const currentFilteredFolders = rootFilteredFolders.filter((folder) => {
+    // Debug log
     console.log(`Filtering folder navigation: ${folder.name} at path "${folder.path}" with currentFolder="${currentFolder}"`);
-    if (currentFolder === "/") {
-      // At root level, show folders that are directly under the root scanned directory
-      // Current folder is marked as children of the root level folder
-      const folderPathParts = folder.path.split('/').filter(Boolean); // Split and remove empty parts
 
-      // For scan results, folders were stored like "/Library/content/subfolder"
-      // We want to show only direct children of the scan root
-      // So we look for folders with exactly 2 path parts (Library + one child)
-      return folderPathParts.length === 2; // Only show direct children of root
-    } else {
-      // Show folders that are inside the current folder (children)
-      const currentFolderParts = currentFolder.split('/').filter(Boolean);
+    // For the new API, show folders at current level
+    if (currentFolder === "/") {
       const folderPathParts = folder.path.split('/').filter(Boolean);
-
-      // Show folders that are immediate children of current folder
-      return folderPathParts.length === currentFolderParts.length + 1 &&
-             folderPathParts.slice(0, -1).join('/') === currentFolderParts.join('/');
-    }
-  });
-
-  // Apply current folder filtering to items (this is for folder navigation)
-  const currentFilteredItems = rootFilteredItems.filter((item) => {
-    if (currentFolder === "/") {
-      // At root level, show items that are directly in the root folder
-      const itemPath = item.id;
-      const libraryRoot = libraryRootFolder || '';
-
-      // Show items that are directly under the library root folder
-      const itemFolder = itemPath.substring(0, itemPath.lastIndexOf('/'));
-      return itemFolder === libraryRoot || itemFolder === libraryRootFolder;
+      // With new backend, folders from root scan are at top level
+      return folderPathParts.length <= 1;
     } else {
-      // Show items that are in the current folder path
-      return item.id.startsWith(currentFolder);
+      // Show folders that belong in current navigation path
+      const navPath = currentFolder.replace(/^\/+/, ''); // Remove leading slash
+
+      // Navigate to this subfolder
+      const folderPathParts = folder.path.split('/').filter(Boolean);
+      return folderPathParts.length > 0 && folderPathParts[0] === navPath && folderPathParts.length === 1;
     }
   });
+
+  // For simplicity, show all folders at root level, and show items grouped
+  const currentFilteredItems = libraryData?.items || [];
 
   // Use the current filtered folders
   const folders = currentFilteredFolders;
@@ -624,6 +616,16 @@ export default function LibraryPage() {
       }
     };
   }, [libraryData]);
+
+  // Add final summary logging
+  console.log('\n=== FINAL LIBRARY PAGE STATE ===');
+  console.log('Total items:', libraryData?.items?.length || 0);
+  console.log('Total folders:', libraryData?.folders?.length || 0);
+  console.log('Root filtered items:', rootFilteredItems.length);
+  console.log('Current filtered folders:', currentFilteredFolders.length);
+  console.log('Current filtered items:', currentFilteredItems.length);
+  console.log('LibraryRootFolder:', libraryRootFolder);
+  console.log('CurrentFolder:', currentFolder);
 
   return (
     <div className="min-h-screen bg-background">
@@ -726,7 +728,28 @@ export default function LibraryPage() {
               onChange={(e) => setSearchQuery(e.target.value)}
             />
           </div>
-          <div className="flex items-center gap-0">
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                console.log('=== DEBUG: Library State ===');
+                console.log('libraryData:', libraryData);
+                console.log('libraryRootFolder:', libraryRootFolder);
+                console.log('Current filtered:', {
+                  folders: currentFilteredFolders.length,
+                  items: currentFilteredItems.length
+                });
+                if (libraryData?.items?.length > 0) {
+                  console.log('First item:', libraryData.items[0]);
+                }
+                if (libraryData?.folders?.length > 0) {
+                  console.log('First folder:', libraryData.folders[0]);
+                }
+              }}
+            >
+              Debug
+            </Button>
             <TooltipProvider>
               <Tooltip>
                 <DropdownMenu>

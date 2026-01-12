@@ -43,74 +43,69 @@ function getFileType(ext?: string): LibraryItem["type"] {
   return "other";
 }
 
-async function scanDirectory(dirPath: string, basePath: string = ""): Promise<ScanResult> {
+async function scanDirectory(rootPath: string, currentPath: string = "", showHiddenFiles: boolean = false): Promise<ScanResult> {
   const items: LibraryItem[] = [];
   const folders: LibraryFolder[] = [];
+  const absolutePath = path.join(rootPath, currentPath);
 
   try {
-    const entries = await fs.readdir(dirPath, { withFileTypes: true });
+    const entries = await fs.readdir(absolutePath, { withFileTypes: true });
 
-    // Process directories first
     for (const entry of entries) {
-      if (entry.isDirectory()) {
-        const folderName = entry.name;
-        const folderPath = path.join(dirPath, folderName);
-        const relativePath = path.join(basePath, folderName);
+      const entryName = entry.name;
 
-        console.log(`Scanning directory: ${folderPath}`);
-
-        // Recursively scan subdirectory
-        const subResult = await scanDirectory(folderPath, relativePath);
-
-        // Add current folder
-        folders.push({
-          id: relativePath,
-          name: folderName,
-          path: relativePath,
-          itemCount: subResult.items.length,
-          lastScanned: new Date().toISOString(),
-        });
-
-        // Add subdirectory items and folders
-        items.push(...subResult.items);
-        folders.push(...subResult.folders);
+      // Skip hidden files/folders unless showHiddenFiles is true
+      if (!showHiddenFiles && entryName.startsWith('.')) {
+        continue;
       }
-    }
 
-    // Process files
-    for (const entry of entries) {
-      if (entry.isFile()) {
-        const fileName = entry.name;
-        const ext = path.extname(fileName).slice(1).toLowerCase();
+      const relativePath = currentPath ? path.join(currentPath, entryName) : entryName;
+
+      if (entry.isDirectory()) {
+        // Scan subdirectory
+        const subResult = await scanDirectory(rootPath, relativePath, showHiddenFiles);
+
+        // Only add top-level directories (direct children of the root)
+        if (!currentPath && subResult.items.length > 0) {
+          folders.push({
+            id: relativePath.replace(/\\/g, '/'), // Normalize to forward slashes
+            name: entryName,
+            path: '/' + relativePath.replace(/\\/g, '/'), // Add leading slash
+            itemCount: subResult.items.length,
+            lastScanned: new Date().toISOString(),
+          });
+        }
+
+        // Also add nested folders from the recursion
+        folders.push(...subResult.folders);
+
+        // Add subdirectory items
+        items.push(...subResult.items);
+      } else if (entry.isFile()) {
+        const ext = path.extname(entryName).slice(1).toLowerCase();
 
         if (ext && supportedFormats.includes(ext)) {
-          const filePath = path.join(dirPath, fileName);
-          const relativePath = path.join(basePath, fileName);
-
           try {
-            const stats = await fs.stat(filePath);
+            const fileAbsolutePath = path.join(absolutePath, entryName);
+            const stats = await fs.stat(fileAbsolutePath);
 
             const item: LibraryItem = {
-              id: relativePath,
-              name: fileName,
+              id: '/' + relativePath.replace(/\\/g, '/'), // Normalize to forward slashes with leading slash
+              name: entryName,
               type: getFileType(ext),
               size: stats.size,
               lastModified: stats.mtime.toISOString(),
             };
 
-            // For images, we could potentially get dimensions here
-            // For videos, we could get duration and dimensions
-            // This would require additional video processing libraries
-
             items.push(item);
           } catch (error) {
-            console.error(`Failed to process file ${filePath}:`, error);
+            console.error(`Failed to process file ${relativePath}:`, error);
           }
         }
       }
     }
   } catch (error) {
-    console.error(`Failed to scan directory ${dirPath}:`, error);
+    console.error(`Failed to scan directory ${absolutePath}:`, error);
     throw error;
   }
 
@@ -118,17 +113,13 @@ async function scanDirectory(dirPath: string, basePath: string = ""): Promise<Sc
 }
 
 // Allowed directory patterns - can be configured via environment variables
-// For development, we'll allow common user directories
 const ALLOWED_ROOT_PATHS = process.env.LIBRARY_ALLOWED_PATHS
   ? process.env.LIBRARY_ALLOWED_PATHS.split(',')
   : ['/Users', '/home', '/Volumes', '/media'];
 
 // Check if a path is within allowed directories
 function isPathAllowed(targetPath: string): boolean {
-  // Normalize path
   const normalizedPath = path.resolve(targetPath);
-
-  // Check if path is within any allowed root
   return ALLOWED_ROOT_PATHS.some(allowedRoot => {
     const resolvedRoot = path.resolve(allowedRoot);
     return normalizedPath.startsWith(resolvedRoot);
@@ -139,7 +130,6 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
 
-
     // Validate request body
     if (!body || typeof body.rootPath !== 'string' || !body.rootPath.trim()) {
       return NextResponse.json(
@@ -149,6 +139,7 @@ export async function POST(request: NextRequest) {
     }
 
     const rootPath = body.rootPath.trim();
+    const showHiddenFiles = body.showHiddenFiles === true;
 
     // Check if path is allowed
     if (!isPathAllowed(rootPath)) {
@@ -174,11 +165,11 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    console.log(`Starting library scan for: ${rootPath}`);
+    console.log(`Starting library scan for: ${rootPath} (showHiddenFiles: ${showHiddenFiles})`);
     const startTime = Date.now();
 
     // Scan the directory
-    const { items, folders } = await scanDirectory(rootPath);
+    const { items, folders } = await scanDirectory(rootPath, "", showHiddenFiles);
 
     const scanTime = Date.now() - startTime;
     console.log(`Scan completed in ${scanTime}ms. Found ${folders.length} folders and ${items.length} items`);

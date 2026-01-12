@@ -66,7 +66,12 @@ export const useLibraryStore = create<LibraryStore>()((set, get) => ({
   loadLibraryData: async () => {
     set({ isLoading: true });
     try {
+      console.log('Starting loadLibraryData...');
       const data = await libraryService.getLibraryData();
+      console.log('Library data loaded:', {
+        folders: data.folders.length,
+        items: data.items.length
+      });
       set({ libraryData: data, isInitialized: true });
     } catch (error) {
       console.error("Failed to load library data:", error);

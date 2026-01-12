@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Library Test</title>
+</head>
+<body>
+    <h3>OpenJS Grid Test</h3>
+    <button onclick="testRefresh()">Test Refresh Library</button>
+    <pre id="output">
+Console log output:
+    </pre>
+
+    <script>
+        async function testRefresh() {
+            try {
+                const response = await fetch('http://localhost:3000/api/library/scan', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        rootPath: '/Users/wrc4/dev/AiOpenCut'
+                    })
+                });
+
+                const data = await response.json();
+                document.getElementById('output').textContent += '\nScan successful: ' + JSON.stringify({
+                    folders: data.folders.length,
+                    items: data.items.length
+                }, null, 2);
+
+                if (data.folders.length > 0) {
+                    document.getElementById('output').textContent += '\n\nSample folders: ' + JSON.stringify(data.folders, null, 2);
+                }
+
+                if (data.items.length > 0) {
+                    document.getElementById('output').textContent += '\n\nSample items: ' + JSON.stringify(data.items.slice(0, 3), null, 2);
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                document.getElementById('output').textContent += '\n\nError: ' + error.message;
+            }
+        }
+    </script>
+</body>
+</html>
