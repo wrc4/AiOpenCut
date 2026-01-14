@@ -115,7 +115,7 @@ async function scanDirectory(rootPath: string, currentPath: string = "", showHid
 // Allowed directory patterns - can be configured via environment variables
 const ALLOWED_ROOT_PATHS = process.env.LIBRARY_ALLOWED_PATHS
   ? process.env.LIBRARY_ALLOWED_PATHS.split(',')
-  : ['/Users', '/home', '/Volumes', '/media'];
+  : ['/Users', '/home', '/Volumes', '/media', 'd:\\'];
 
 // Check if a path is within allowed directories
 function isPathAllowed(targetPath: string): boolean {
